@@ -8,6 +8,7 @@
     <Title>DeepSigma.DataAccess</Title>
     <Authors>DeepSigma LLC</Authors>
     <Description>Data access library.</Description>
+	  <PackageDescription>Data access library.</PackageDescription>	  
     <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess</PackageId>
@@ -17,8 +18,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="API\" />
-    <Folder Include="FileSystem\" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.25.0" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.52.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.58" />
   </ItemGroup>
 
 </Project>
