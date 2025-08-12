@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.FileSystem
+namespace Dotnet.DeepSigma.DataAccess.OperatingSystem
 {
     public class FileProperties
     {

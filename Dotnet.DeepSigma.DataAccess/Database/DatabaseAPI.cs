@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Dotnet.DeepSigma.DataAccess.OperatingSystem;
 using Microsoft.Data.SqlClient;
 using Npgsql;
 using System;
@@ -15,10 +16,40 @@ namespace Dotnet.DeepSigma.DataAccess.Database
     {
         private string connection_string {  get; set; }
         private DatabaseType database_type { get; set; }
-        public DatabaseAPI(string connection_string, DatabaseType database_type)
+        public DatabaseAPI(string connection_string, DatabaseType database_type, int connection_timeout = 10)
         { 
             this.connection_string = connection_string;
             this.database_type = database_type;
+        }
+        
+        public async Task<IEnumerable<T>> GetAllAsync<T, F>(string sql,F parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.QueryAsync<T>(sql, parameters, commandTimeout: command_timout);
+        }
+
+        public async Task<T?> GetByIdAsync<T>(string sql, int id, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<T>(sql, new { Id = id }, commandTimeout: command_timout);
+        }
+
+        public async Task<int> CreateAsync<F>(string sql, F parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.ExecuteScalarAsync<int>(sql, parameters, commandTimeout: command_timout);
+        }
+
+        public async Task<IEnumerable<int>?> CreateAllAsync<F>(string sql, IEnumerable<F> parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.ExecuteScalarAsync<IEnumerable<int>>(sql, parameters, commandTimeout: command_timout);
+        }
+
+        public async Task<T?> ExecuteAsync<T, F>(string sql, F? parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.ExecuteScalarAsync<T>(sql, parameters, commandTimeout: command_timout);
         }
 
         private IDbConnection CreateConnection()
@@ -30,24 +61,5 @@ namespace Dotnet.DeepSigma.DataAccess.Database
                 _ => throw new NotSupportedException()
             };
         }
-
-        public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? command_timout = null)
-        {
-            using var connection = CreateConnection();
-            return await connection.QueryAsync<T>(sql, commandTimeout: command_timout);
-        }
-
-        public async Task<T?> GetByIdAsync<T>(string sql, int id, int? command_timout = null)
-        {
-            using var connection = CreateConnection();
-            return await connection.QueryFirstOrDefaultAsync<T>(sql, new { Id = id }, commandTimeout: command_timout);
-        }
-
-        public async Task<int> CreateAsync<T>(string sql, T item, int? command_timout = null)
-        {
-            using var connection = CreateConnection();
-            return await connection.ExecuteScalarAsync<int>(sql, item, commandTimeout: command_timout);
-        }
-
     }
 }

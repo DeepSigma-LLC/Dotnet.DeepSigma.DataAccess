@@ -5,14 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 
-namespace Dotnet.DeepSigma.DataAccess.FileSystem
+namespace Dotnet.DeepSigma.DataAccess.OperatingSystem
 {
     public class FileSystemObject
     {
         public FileSystemType? Type { get; set; } = null;
         public string OriginalPath { get; set; }
-        public string DirectoryPath { get; set; }
-        public string DirectoryName { get; set; }
+        public string DirectoryPath { get; set; } = string.Empty;
+        public string DirectoryName { get; set; } = string.Empty;
         public FileProperties FileProperties { get; set; } = new();
         public FileSystemObject[] Files { get; set; } = [];
         public FileSystemObject[] Directories { get; set; } = [];
