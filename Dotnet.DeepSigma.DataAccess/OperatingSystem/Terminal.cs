@@ -9,7 +9,6 @@ namespace Dotnet.DeepSigma.DataAccess.OperatingSystem
 {
     public static  class Terminal
     {
-
         public static void RunCommand(string command, string? args = null)
         {
             var psi = new ProcessStartInfo

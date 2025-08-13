@@ -10,17 +10,17 @@ namespace Dotnet.DeepSigma.DataAccess.Utilities
     internal static class ObjectUtilities
     {
 
-        internal static V GetPropertyValue<T, V>(T objectInstance, string propertyName)
+        internal static V? GetPropertyValue<T, V>(T objectInstance, string propertyName)
         {
             var property = typeof(T).GetProperty(propertyName);
             if (property == null)
             {
                 throw new ArgumentException($"Property '{propertyName}' not found on type '{typeof(T).Name}'.");
             }
-            return (V)property.GetValue(objectInstance);
+            return (V?)property.GetValue(objectInstance);
         }
 
-        internal static V GetPropertyValue<T, V>(T objectInstance, Expression<Func<T, object>> expression)
+        internal static V? GetPropertyValue<T, V>(T objectInstance, Expression<Func<T, object>> expression)
         {
             if (expression.Body is MemberExpression memberExpression)
             {
@@ -29,7 +29,7 @@ namespace Dotnet.DeepSigma.DataAccess.Utilities
                 {
                     throw new ArgumentException($"Property '{memberExpression.Member.Name}' not found on type '{typeof(T).Name}'.");
                 }
-                return (V)property.GetValue(objectInstance);
+                return (V?)property.GetValue(objectInstance);
             }
             else
             {

@@ -34,13 +34,25 @@ namespace Dotnet.DeepSigma.DataAccess.Database
             return await connection.QueryFirstOrDefaultAsync<T>(sql, new { Id = id }, commandTimeout: command_timout);
         }
 
-        public async Task<int> CreateAsync<F>(string sql, F parameters, int? command_timout = null)
+        public async Task<int> InsertAsync<F>(string sql, F parameters, int? command_timout = null)
         {
             using var connection = CreateConnection();
             return await connection.ExecuteScalarAsync<int>(sql, parameters, commandTimeout: command_timout);
         }
 
-        public async Task<IEnumerable<int>?> CreateAllAsync<F>(string sql, IEnumerable<F> parameters, int? command_timout = null)
+        public async Task<IEnumerable<int>?> InsertAllAsync<F>(string sql, IEnumerable<F> parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.ExecuteScalarAsync<IEnumerable<int>>(sql, parameters, commandTimeout: command_timout);
+        }
+
+        public async Task<int> UpdateAsync<F>(string sql, F parameters, int? command_timout = null)
+        {
+            using var connection = CreateConnection();
+            return await connection.ExecuteScalarAsync<int>(sql, parameters, commandTimeout: command_timout);
+        }
+
+        public async Task<IEnumerable<int>?> UpdateAllAsync<F>(string sql, IEnumerable<F> parameters, int? command_timout = null)
         {
             using var connection = CreateConnection();
             return await connection.ExecuteScalarAsync<IEnumerable<int>>(sql, parameters, commandTimeout: command_timout);
