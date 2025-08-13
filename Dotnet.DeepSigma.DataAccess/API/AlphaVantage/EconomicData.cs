@@ -1,18 +1,94 @@
-﻿using System;
+﻿using DeepSigma.DataAccess.API.AlphaVantage.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage
+namespace DeepSigma.DataAccess.API.AlphaVantage
 {
     public class EconomicData
     {
         private string api_key { get; }
 
-        public EconomicData(string api_key)
+        internal EconomicData(string api_key)
         {
             this.api_key = api_key;
         }
+
+        public async Task<T?> GetRealGDP<T>(TimeSeriesInterval interval = TimeSeriesInterval.Daily, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=REAL_GDP&interval={interval.ToString()}&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetRealGDPPerCapita<T>(TimeSeriesInterval interval = TimeSeriesInterval.Daily, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=REAL_GDP_PER_CAPITA&interval={interval.ToString()}&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetUSTreasuryYield<T>(FixedIncomeMaturities maturity,TimeSeriesInterval interval = TimeSeriesInterval.Daily, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=TREASURY_YIELD&interval={interval.ToString()}&maturity={maturity.ToString()}&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetFedFunds<T>(TimeSeriesInterval interval = TimeSeriesInterval.Daily, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&interval={interval.ToString()}&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+
+        public async Task<T?> GetCPI<T>(TimeSeriesInterval interval = TimeSeriesInterval.Daily, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=CPI&interval={interval.ToString()}&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+
+
+        public async Task<T?> GetInflation<T>(CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=INFLATION&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+
+        public async Task<T?> GetRetailSales<T>(CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=RETAIL_SALES&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetDurableGoodsOrders<T>(CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=DURABLES&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetNonFarmPayrolls<T>(CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=NONFARM_PAYROLL&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+
+        public async Task<T?> GetUnemployment<T>(CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=UNEMPLOYMENT&apikey={api_key}";
+            T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }    
+
     }
 }

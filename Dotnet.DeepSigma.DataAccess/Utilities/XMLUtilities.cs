@@ -7,7 +7,7 @@ using System.Xml.Serialization;
 using System.IO;
 using System.Xml;
 
-namespace Dotnet.DeepSigma.DataAccess.Utilities
+namespace DeepSigma.DataAccess.Utilities
 {
     public class XMLUtilities
     {

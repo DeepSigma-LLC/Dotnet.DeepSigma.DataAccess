@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage.DataModels
+namespace DeepSigma.DataAccess.API.AlphaVantage.DataModels
 {
     internal class AlphaVantageCsvOHLC
     {

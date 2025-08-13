@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage
+namespace DeepSigma.DataAccess.API.AlphaVantage
 {
     public class Utilities
     {
         private string api_key { get; set; }
-        public Utilities(string api_key = "demo")
+        internal Utilities(string api_key = "demo")
         {
             this.api_key = api_key;
         }

@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage.DataModels
+namespace DeepSigma.DataAccess.API.AlphaVantage.DataModels
 {
     internal sealed class AlphaVantageMeta
     {

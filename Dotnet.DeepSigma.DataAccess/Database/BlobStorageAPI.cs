@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 
-namespace Dotnet.DeepSigma.DataAccess.Database
+namespace DeepSigma.DataAccess.Database
 {
     public class BlobStorageAPI
     {

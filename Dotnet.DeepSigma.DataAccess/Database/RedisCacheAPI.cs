@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
-namespace Dotnet.DeepSigma.DataAccess.Database
+namespace DeepSigma.DataAccess.Database
 {
     internal class RedisCacheAPI
     {

@@ -8,9 +8,9 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
-using Dotnet.DeepSigma.DataAccess.Utilities;
+using DeepSigma.DataAccess.Utilities;
 
-namespace Dotnet.DeepSigma.DataAccess.Database
+namespace DeepSigma.DataAccess.Database
 {
     public class CosmosDBAPI
     {

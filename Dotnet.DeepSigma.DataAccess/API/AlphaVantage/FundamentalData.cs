@@ -4,13 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage
+namespace DeepSigma.DataAccess.API.AlphaVantage
 {
     public class FundamentalData
     {
         private string api_key { get; }
 
-        public FundamentalData(string api_key)
+        internal FundamentalData(string api_key)
         {
             this.api_key = api_key;
         }

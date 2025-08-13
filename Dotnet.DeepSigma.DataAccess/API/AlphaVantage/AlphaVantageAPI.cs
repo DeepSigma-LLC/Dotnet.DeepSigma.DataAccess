@@ -1,7 +1,4 @@
-﻿
-using Dotnet.DeepSigma.DataAccess.API.AlphaVantage.DataModels;
-using Dotnet.DeepSigma.DataAccess.API.AlphaVantage.Enums;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Formats.Asn1;
 using System.Globalization;
@@ -13,7 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage
+namespace DeepSigma.DataAccess.API.AlphaVantage
 {
     public class AlphaVantageAPI
     {

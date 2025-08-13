@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API
+namespace DeepSigma.DataAccess.API
 {
     public static class APIUtilities
     {

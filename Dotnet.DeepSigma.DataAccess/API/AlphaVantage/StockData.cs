@@ -1,22 +1,22 @@
-﻿using Dotnet.DeepSigma.DataAccess.API.AlphaVantage.Enums;
+﻿using DeepSigma.DataAccess.API.AlphaVantage.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.API.AlphaVantage
+namespace DeepSigma.DataAccess.API.AlphaVantage
 {
     public class StockData
     {
         private string api_key { get; set; }
 
-        public StockData(string api_key)
+        internal StockData(string api_key)
         {
             this.api_key = api_key;
         }
 
-        public async Task<T?> GetIntradayTimeSeriesData<T>(string symbol, TimeSeriesInterval interval = TimeSeriesInterval.Fifteen, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
+        public async Task<T?> GetIntradayTimeSeriesData<T>(string symbol, TimeSeriesIntradayInterval interval = TimeSeriesIntradayInterval.Fifteen, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
         {
             string url = $"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval={interval.ToString()}&apikey={api_key}&outputsize={output_size.ToString()}";
             T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);

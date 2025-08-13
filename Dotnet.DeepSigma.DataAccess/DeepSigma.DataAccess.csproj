@@ -15,6 +15,7 @@
 	<AssemblyVersion>1.0.0.1</AssemblyVersion>
     <Version>$(AssemblyVersion)</Version>
     <FileVersion>$(AssemblyVersion)</FileVersion>
+    <RootNamespace>DeepSigma.DataAccess</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

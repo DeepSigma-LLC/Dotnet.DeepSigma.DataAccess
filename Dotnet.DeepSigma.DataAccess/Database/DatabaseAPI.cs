@@ -1,5 +1,5 @@
 ﻿using Dapper;
-using Dotnet.DeepSigma.DataAccess.OperatingSystem;
+using DeepSigma.DataAccess.OperatingSystem;
 using Microsoft.Data.SqlClient;
 using Npgsql;
 using System;
@@ -10,7 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.Database
+namespace DeepSigma.DataAccess.Database
 {
     public class DatabaseAPI
     {

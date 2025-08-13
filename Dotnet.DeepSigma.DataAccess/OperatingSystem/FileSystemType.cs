@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.OperatingSystem
+namespace DeepSigma.DataAccess.OperatingSystem
 {
     public enum FileSystemType
     {

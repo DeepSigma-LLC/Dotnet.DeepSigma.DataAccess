@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dotnet.DeepSigma.DataAccess.Utilities
+namespace DeepSigma.DataAccess.Utilities
 {
     internal static class ObjectUtilities
     {
