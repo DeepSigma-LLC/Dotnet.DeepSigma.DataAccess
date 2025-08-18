@@ -1,4 +1,5 @@
 ﻿using DeepSigma.DataAccess.API.AlphaVantage.Enums;
+using DeepSigma.General.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,14 +19,14 @@ namespace DeepSigma.DataAccess.API.AlphaVantage
 
         public async Task<T?> GetIntradayTimeSeriesData<T>(string symbol, TimeSeriesIntradayInterval interval = TimeSeriesIntradayInterval.Fifteen, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
         {
-            string url = $"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval={interval.ToString()}&apikey={api_key}&outputsize={output_size.ToString()}";
+            string url = $"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval={interval.ToDescriptionString()}&apikey={api_key}&outputsize={output_size.ToDescriptionString()}";
             T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
             return results;
         }
 
         public async Task<T?> GetDailyTimeSeriesData<T>(string symbol, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
         {
-            string url = $"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&outputsize={output_size.ToString()}&apikey={api_key}";
+            string url = $"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&outputsize={output_size.ToDescriptionString()}&apikey={api_key}";
             var results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
             return results;
         }

@@ -56,12 +56,20 @@ namespace DeepSigma.DataAccess.API.AlphaVantage
 
         public async Task<T?> GetNews<T>(string[] symbols, int limit = 1000, CancellationToken ct = default)
         {
-            string url = $"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={string.Join(",", symbols)}&sort=LATEST&apikey=demo&apikey={api_key}";
+            string url = $"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={string.Join(",", symbols)}&sort=LATEST&apikey={api_key}";
             var results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
             return results;
         }
 
-   
+
+        public async Task<T?> GetETFProfileAndHoldings<T>(string symbol, CancellationToken ct = default)
+        {
+            string url = $"https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=symbol&apikey={api_key}";
+            var results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
+            return results;
+        }
+    
+
 
 
     }

@@ -1,4 +1,5 @@
 ﻿using DeepSigma.DataAccess.API.AlphaVantage.Enums;
+using DeepSigma.General.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,14 +26,14 @@ namespace DeepSigma.DataAccess.API.AlphaVantage
 
         public async Task<T?> GetExchangeRatesIntraday<T>(string symbol, string currency, TimeSeriesIntradayInterval interval = TimeSeriesIntradayInterval.Fifteen, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
         {
-            string url = $"https://www.alphavantage.co/query?function=CRYPTO_INTRADAY&symbol={symbol}&market={currency}&interval={interval.ToString()}&outputsize={output_size}&apikey={api_key}";
+            string url = $"https://www.alphavantage.co/query?function=CRYPTO_INTRADAY&symbol={symbol}&market={currency}&interval={interval.ToDescriptionString()}&outputsize={output_size.ToDescriptionString()}&apikey={api_key}";
             T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
             return results;
         }
 
         public async Task<T?> GetExchangeRatesDaily<T>(string symbol, string currency, OutputSize output_size = OutputSize.Full, CancellationToken ct = default)
         {
-            string url = $"https://www.alphavantage.co/query?function=DIGITAL_CURRENCY_DAILY&symbol={symbol}&market={currency}&outputsize={output_size}&apikey={api_key}";
+            string url = $"https://www.alphavantage.co/query?function=DIGITAL_CURRENCY_DAILY&symbol={symbol}&market={currency}&outputsize={output_size.ToDescriptionString()}&apikey={api_key}";
             T? results = await APIUtilities.GetDataAsync<T>(url, cancel_token: ct);
             return results;
         }
