@@ -11,9 +11,21 @@ using System.Threading.Tasks;
 
 namespace DeepSigma.DataAccess.API
 {
+    /// <summary>
+    /// Provides utility methods for interacting with web APIs, including fetching JSON and CSV data, deserializing JSON responses, and handling rate limits or error messages.
+    /// </summary>
     public static class APIUtilities
     {
 
+        /// <summary>
+        /// Fetches JSON data from a specified URL and deserializes it into an object of type T.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="url"></param>
+        /// <param name="timeout_in_seconds"></param>
+        /// <param name="JsonLoggingMethod"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
         public static async Task<T?> GetDataFromURLAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
         {
             string? json = await GetDataAsync(url, timeout_in_seconds, cancel_token);
@@ -28,6 +40,13 @@ namespace DeepSigma.DataAccess.API
             return results;
         }
 
+        /// <summary>
+        /// Fetches raw JSON data from a specified URL as a string.
+        /// </summary>
+        /// <param name="url_endpoint"></param>
+        /// <param name="timeout_in_seconds"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
         public static async Task<string?> GetDataAsync(string url_endpoint, int timeout_in_seconds = 15, CancellationToken cancel_token = default)
         {
             Uri queryUri = new(url_endpoint);
@@ -39,6 +58,14 @@ namespace DeepSigma.DataAccess.API
             return json_text;
         }
 
+        /// <summary>
+        /// Deserializes a JSON string into an object of type T, handling potential rate-limit or error messages from the API.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="json_text"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static async Task<T?> LoadFromJSON<T>(string json_text, CancellationToken cancel_token = default)
         {
             JsonSerializerOptions opts = new()
@@ -65,6 +92,15 @@ namespace DeepSigma.DataAccess.API
             return dto;
         }
 
+        /// <summary>
+        /// Fetches CSV data from a specified URL as a string, ensuring the response is in CSV format.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="url_endpoint"></param>
+        /// <param name="timeout_seconds"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static async Task<string> GetCsvDataAsync<T>(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_seconds) };
@@ -82,6 +118,12 @@ namespace DeepSigma.DataAccess.API
             return text;
         }
 
+        /// <summary>
+        /// Parses CSV text into a list of objects of type T using CsvHelper.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="csvText"></param>
+        /// <returns></returns>
         public static List<T> ParseCsv<T>(string csvText)
         {
             using var reader = new StringReader(csvText);

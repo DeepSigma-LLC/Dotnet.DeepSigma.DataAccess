@@ -8,15 +8,15 @@ using Azure.Storage.Blobs.Models;
 
 namespace DeepSigma.DataAccess.Database
 {
-    public class BlobStorageAPI
+    /// <summary>
+    /// Provides methods to interact with Azure Blob Storage, including uploading, downloading, deleting, and listing blobs in a specified container.
+    /// </summary>
+    /// <param name="connection_string"></param>
+    /// <param name="blob_container_name"></param>
+    public class BlobStorageAPI(string connection_string, string blob_container_name)
     {
-        private string ConnectionString { get; set; }
-        private string ContainerName { get; set; }
-        public BlobStorageAPI(string connectionString, string blobContainerName)
-        {
-            this.ConnectionString = connectionString;
-            this.ContainerName = blobContainerName;
-        }
+        private string ConnectionString { get; set; } = connection_string;
+        private string ContainerName { get; set; } = blob_container_name;
 
         /// <summary>
         /// Uploads the file to the blob container.

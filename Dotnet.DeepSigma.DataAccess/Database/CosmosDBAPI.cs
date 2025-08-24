@@ -12,17 +12,17 @@ using DeepSigma.DataAccess.Utilities;
 
 namespace DeepSigma.DataAccess.Database
 {
-    public class CosmosDBAPI
+    /// <summary>
+    /// Provides methods to interact with Azure Cosmos DB, including creating databases and containers, inserting, querying, updating, and deleting items.
+    /// </summary>
+    /// <param name="end_point_uri"></param>
+    /// <param name="api_key"></param>
+    /// <param name="app_name"></param>
+    public class CosmosDBAPI(string end_point_uri, string api_key, string app_name)
     {
-        private readonly string EndpointUri;
-        private readonly string PrimaryKey;
-        private readonly string AppName;
-        public CosmosDBAPI(string endPointUri, string apiKey, string appName)
-        {
-            PrimaryKey = apiKey;
-            EndpointUri = endPointUri;
-            AppName = appName;
-        }
+        private readonly string EndpointUri = end_point_uri;
+        private readonly string PrimaryKey = api_key;
+        private readonly string AppName = app_name;
 
         /// <summary>
         /// Creates instance of a cosmos client.
@@ -85,9 +85,9 @@ namespace DeepSigma.DataAccess.Database
         /// </summary>
         public async Task<T> InsertAsync<T>(string databaseId, string containerId, T item, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty)
         {
-            string partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(item, partitionKeyProperty);
+            string? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(item, partitionKeyProperty);
             PartitionKey partitionKey = new PartitionKey(partitionKeyValue);
-            string idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(item, idProperty);
+            string? idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(item, idProperty);
             using (CosmosClient cosmosClient = InstatiateCosmosClient())
             {
                 Container container = cosmosClient.GetContainer(databaseId, containerId);
@@ -136,8 +136,8 @@ namespace DeepSigma.DataAccess.Database
         /// </summary>
         public async Task<T> UpdateItemAsync<T>(string databaseId, string containerId, T newItem, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty)
         {
-            string idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, idProperty);
-            string partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, partitionKeyProperty);
+            string? idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, idProperty);
+            string? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, partitionKeyProperty);
             PartitionKey partitionKey = new PartitionKey(partitionKeyValue);
             using (CosmosClient cosmosClient = InstatiateCosmosClient())
             {
