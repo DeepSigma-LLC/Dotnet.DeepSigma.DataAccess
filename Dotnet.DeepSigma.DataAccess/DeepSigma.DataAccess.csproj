@@ -12,9 +12,9 @@
     <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess</PackageId>
-	<AssemblyVersion>1.0.0.1</AssemblyVersion>
-    <Version>$(AssemblyVersion)</Version>
-    <FileVersion>$(AssemblyVersion)</FileVersion>
+	<AssemblyVersion>$(Version)</AssemblyVersion>
+    <Version>1.0.0.2</Version>
+    <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess</RootNamespace>
   </PropertyGroup>
 
