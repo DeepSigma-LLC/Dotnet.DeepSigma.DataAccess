@@ -1,5 +1,6 @@
 ﻿using CsvHelper;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -12,36 +13,44 @@ namespace DeepSigma.DataAccess.API
 {
     public static class APIUtilities
     {
-        public static async Task<dynamic?> GetDataAsDynamic(string url_endpoint, int timeout_in_seconds = 15, CancellationToken cancel_token = default)
-        {
-            Uri queryUri = new Uri(url_endpoint);
 
+        public static async Task<T?> GetDataFromURLAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
+        {
+            string? json = await GetDataAsync(url, timeout_in_seconds, cancel_token);
+
+            if (JsonLoggingMethod is not null)
+            {
+                JsonLoggingMethod(json);
+            }
+
+            if (string.IsNullOrWhiteSpace(json)) { return default; }
+            T? results = await LoadFromJSON<T>(json, cancel_token);
+            return results;
+        }
+
+        public static async Task<string?> GetDataAsync(string url_endpoint, int timeout_in_seconds = 15, CancellationToken cancel_token = default)
+        {
+            Uri queryUri = new(url_endpoint);
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_in_seconds) };
             using var response = await http.GetAsync(queryUri, cancel_token);
             response.EnsureSuccessStatusCode();
 
             string json_text = await response.Content.ReadAsStringAsync(cancel_token);
-            dynamic? json_data = JsonSerializer.Deserialize<Dictionary<string, dynamic>>(json_text);
-            return json_data;
+            return json_text;
         }
 
-        public static async Task<T?> GetDataAsync<T>(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
+        public static async Task<T?> LoadFromJSON<T>(string json_text, CancellationToken cancel_token = default)
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_seconds) };
-            using var resp = await http.GetAsync(url_endpoint, cancel_token);
-            resp.EnsureSuccessStatusCode();
-
-            var json = await resp.Content.ReadAsStringAsync(cancel_token);
-
             JsonSerializerOptions opts = new()
             {
                 NumberHandling = JsonNumberHandling.AllowReadingFromString
             };
 
-            var dto = JsonSerializer.Deserialize<T>(json, opts);
+            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json_text));
+            T? dto = await JsonSerializer.DeserializeAsync<T>(stream, opts, cancellationToken: cancel_token);
 
             // Handle rate-limit / error messages
-            using var doc = JsonDocument.Parse(json);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken:cancel_token);
             var root = doc.RootElement;
             if (root.TryGetProperty("Note", out var note))
             {
@@ -56,26 +65,28 @@ namespace DeepSigma.DataAccess.API
             return dto;
         }
 
-        public static async Task<List<T>> GetCsvDataAsync<T>(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
+        public static async Task<string> GetCsvDataAsync<T>(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_seconds) };
             using var resp = await http.GetAsync(url_endpoint, HttpCompletionOption.ResponseHeadersRead, cancel_token);
             resp.EnsureSuccessStatusCode();
 
+            var text = await resp.Content.ReadAsStringAsync(cancel_token);
+
             // If they rate-limit you, they sometimes return text/JSON. We’ll sanity-check content-type.
             if (!resp.Content.Headers.ContentType?.MediaType?.Contains("csv", StringComparison.OrdinalIgnoreCase) ?? true)
             {
-                var text = await resp.Content.ReadAsStringAsync(cancel_token);
+                
                 throw new InvalidOperationException($"Non-CSV response: {text}");
             }
+            return text;
+        }
 
-            await using var stream = await resp.Content.ReadAsStreamAsync(cancel_token);
-            using var reader = new StreamReader(stream);
+        public static List<T> ParseCsv<T>(string csvText)
+        {
+            using var reader = new StringReader(csvText);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-
-            // Alpha Vantage uses dots as decimal separator; InvariantCulture is correct.
-            var rows = csv.GetRecords<T>().ToList(); // streaming under the hood; materialize to List
-            return rows;
+            return csv.GetRecords<T>().ToList();
         }
     }
 }

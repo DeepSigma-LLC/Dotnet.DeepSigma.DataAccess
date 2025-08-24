@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36301.6
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess", "DeepSigma.DataAccess.csproj", "{F3BBC8BC-3BFD-481F-BCB9-61917EA14F06}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataAccessTests", "..\DataAccessTests\DataAccessTests.csproj", "{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{F3BBC8BC-3BFD-481F-BCB9-61917EA14F06}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F3BBC8BC-3BFD-481F-BCB9-61917EA14F06}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F3BBC8BC-3BFD-481F-BCB9-61917EA14F06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
