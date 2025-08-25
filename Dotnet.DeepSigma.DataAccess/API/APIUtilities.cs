@@ -28,7 +28,7 @@ namespace DeepSigma.DataAccess.API
         /// <returns></returns>
         public static async Task<T?> GetDataFromURLAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
         {
-            string? json = await GetDataAsync(url, timeout_in_seconds, cancel_token);
+            string? json = await GetJsonResponseAsync(url, timeout_in_seconds, cancel_token);
 
             if (JsonLoggingMethod is not null)
             {
@@ -41,13 +41,36 @@ namespace DeepSigma.DataAccess.API
         }
 
         /// <summary>
+        /// Fetches JSON data from a specified URL and deserializes it into an object of type T.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="url"></param>
+        /// <param name="timeout_in_seconds"></param>
+        /// <param name="JsonLoggingMethod"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
+        public static async Task<List<T>> GetDataFromCSVAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
+        {
+            string? csv = await GetCsvDataAsync(url, timeout_in_seconds, cancel_token);
+
+            if (JsonLoggingMethod is not null)
+            {
+                JsonLoggingMethod(csv);
+            }
+
+            if (string.IsNullOrWhiteSpace(csv)) { return []; }
+            List<T> results = LoadFromCSV<T>(csv);
+            return results;
+        }
+
+        /// <summary>
         /// Fetches raw JSON data from a specified URL as a string.
         /// </summary>
         /// <param name="url_endpoint"></param>
         /// <param name="timeout_in_seconds"></param>
         /// <param name="cancel_token"></param>
         /// <returns></returns>
-        public static async Task<string?> GetDataAsync(string url_endpoint, int timeout_in_seconds = 15, CancellationToken cancel_token = default)
+        public static async Task<string?> GetJsonResponseAsync(string url_endpoint, int timeout_in_seconds = 15, CancellationToken cancel_token = default)
         {
             Uri queryUri = new(url_endpoint);
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_in_seconds) };
@@ -95,13 +118,12 @@ namespace DeepSigma.DataAccess.API
         /// <summary>
         /// Fetches CSV data from a specified URL as a string, ensuring the response is in CSV format.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <param name="url_endpoint"></param>
         /// <param name="timeout_seconds"></param>
         /// <param name="cancel_token"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static async Task<string> GetCsvDataAsync<T>(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
+        public static async Task<string?> GetCsvDataAsync(string url_endpoint, int timeout_seconds = 15, CancellationToken cancel_token = default)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeout_seconds) };
             using var resp = await http.GetAsync(url_endpoint, HttpCompletionOption.ResponseHeadersRead, cancel_token);
@@ -124,7 +146,7 @@ namespace DeepSigma.DataAccess.API
         /// <typeparam name="T"></typeparam>
         /// <param name="csvText"></param>
         /// <returns></returns>
-        public static List<T> ParseCsv<T>(string csvText)
+        public static List<T> LoadFromCSV<T>(string csvText)
         {
             using var reader = new StringReader(csvText);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
