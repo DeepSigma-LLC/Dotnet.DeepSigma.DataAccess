@@ -36,7 +36,7 @@ namespace DeepSigma.DataAccess.API
             }
 
             if (string.IsNullOrWhiteSpace(json)) { return default; }
-            T? results = await LoadFromJSON<T>(json, cancel_token);
+            T? results = await LoadFromJsonAsync<T>(json, cancel_token);
             return results;
         }
 
@@ -82,40 +82,6 @@ namespace DeepSigma.DataAccess.API
         }
 
         /// <summary>
-        /// Deserializes a JSON string into an object of type T, handling potential rate-limit or error messages from the API.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="json_text"></param>
-        /// <param name="cancel_token"></param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        public static async Task<T?> LoadFromJSON<T>(string json_text, CancellationToken cancel_token = default)
-        {
-            JsonSerializerOptions opts = new()
-            {
-                NumberHandling = JsonNumberHandling.AllowReadingFromString
-            };
-
-            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json_text));
-            T? dto = await JsonSerializer.DeserializeAsync<T>(stream, opts, cancellationToken: cancel_token);
-
-            // Handle rate-limit / error messages
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken:cancel_token);
-            var root = doc.RootElement;
-            if (root.TryGetProperty("Note", out var note))
-            {
-                throw new InvalidOperationException($"API note: {note.GetString()}");
-            }
-
-            if (root.TryGetProperty("Error Message", out var err))
-            {
-                throw new InvalidOperationException($"API error: {err.GetString()}");
-            }
-
-            return dto;
-        }
-
-        /// <summary>
         /// Fetches CSV data from a specified URL as a string, ensuring the response is in CSV format.
         /// </summary>
         /// <param name="url_endpoint"></param>
@@ -138,6 +104,40 @@ namespace DeepSigma.DataAccess.API
                 throw new InvalidOperationException($"Non-CSV response: {text}");
             }
             return text;
+        }
+
+        /// <summary>
+        /// Deserializes a JSON string into an object of type T, handling potential rate-limit or error messages from the API.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="json_text"></param>
+        /// <param name="cancel_token"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public static async Task<T?> LoadFromJsonAsync<T>(string json_text, CancellationToken cancel_token = default)
+        {
+            JsonSerializerOptions opts = new()
+            {
+                NumberHandling = JsonNumberHandling.AllowReadingFromString
+            };
+
+            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json_text));
+            T? dto = await JsonSerializer.DeserializeAsync<T>(stream, opts, cancellationToken: cancel_token);
+
+            // Handle rate-limit / error messages
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancel_token);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("Note", out var note))
+            {
+                throw new InvalidOperationException($"API note: {note.GetString()}");
+            }
+
+            if (root.TryGetProperty("Error Message", out var err))
+            {
+                throw new InvalidOperationException($"API error: {err.GetString()}");
+            }
+
+            return dto;
         }
 
         /// <summary>
