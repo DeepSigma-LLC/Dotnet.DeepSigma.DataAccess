@@ -36,7 +36,7 @@ namespace DeepSigma.DataAccess.API
             }
 
             if (string.IsNullOrWhiteSpace(json)) { return default; }
-            T? results = await LoadFromJsonAsync<T>(json, cancel_token);
+            T? results = LoadFromJson<T>(json, cancel_token);
             return results;
         }
 
@@ -114,21 +114,20 @@ namespace DeepSigma.DataAccess.API
         /// <param name="cancel_token"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static async Task<T?> LoadFromJsonAsync<T>(string json_text, CancellationToken cancel_token = default)
+        public static T? LoadFromJson<T>(string json_text, CancellationToken cancel_token = default)
         {
+            if (string.IsNullOrWhiteSpace(json_text)) { return default; }
+
             JsonSerializerOptions opts = new()
             {
                 NumberHandling = JsonNumberHandling.AllowReadingFromString,
                 PropertyNameCaseInsensitive = true,
             };
 
-            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json_text));
-            T? dto = await JsonSerializer.DeserializeAsync<T>(stream, opts, cancellationToken: cancel_token);
-
             // Handle rate-limit / error messages
-            stream.Position = 0;     // Rewind before parsing again
-            using var doc = await JsonDocument.ParseAsync(stream, default, cancel_token);
+            using var doc = JsonDocument.Parse(json_text);
             var root = doc.RootElement;
+
             if (root.TryGetProperty("Note", out var note))
             {
                 throw new InvalidOperationException($"API note: {note.GetString()}");
@@ -139,6 +138,7 @@ namespace DeepSigma.DataAccess.API
                 throw new InvalidOperationException($"API error: {err.GetString()}");
             }
 
+            T? dto = JsonSerializer.Deserialize<T>(json_text, opts);
             return dto;
         }
 
