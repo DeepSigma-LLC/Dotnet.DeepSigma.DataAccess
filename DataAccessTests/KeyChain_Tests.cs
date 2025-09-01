@@ -1,4 +1,5 @@
-﻿using DeepSigma.DataAccess.Utilities;
+﻿using DeepSigma.DataAccess;
+using DeepSigma.DataAccess.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;

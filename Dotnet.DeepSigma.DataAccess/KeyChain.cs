@@ -1,8 +1,8 @@
-﻿using DeepSigma.General;
+﻿using DeepSigma.DataAccess.Models;
 using DeepSigma.General.Utilities;
 using System.Diagnostics.CodeAnalysis;
 
-namespace DeepSigma.DataAccess.Utilities
+namespace DeepSigma.DataAccess
 {
     /// <summary>
     /// Manages a collection of keys, potentially for API access or encryption purposes.
@@ -11,17 +11,21 @@ namespace DeepSigma.DataAccess.Utilities
     {
 
         private Dictionary<string, KeyChainItem> Keys = [];
-        public required string FilePath { get; init; }
+        public string FilePath { get; set; } = string.Empty;
 
         /// <summary>
         /// Initializes a new instance of the KeyChain class.
         /// </summary>
-        /// <param name="full_file_path">Required file path</param>
-        [SetsRequiredMembers]
-        public KeyChain(string full_file_path)
+        public KeyChain() {   }
+
+        /// <summary>
+        /// Initializes a new instance of the KeyChain class.
+        /// </summary>
+        /// <param name="full_json_file_path">Required file path</param>
+        public KeyChain(string full_json_file_path)
         {
-            ValidateExistingFilePath(full_file_path);
-            this.FilePath = full_file_path;
+            ValidateExistingFilePath(full_json_file_path);
+            FilePath = full_json_file_path;
             LoadKeysFromFile();
         }
 
@@ -60,21 +64,36 @@ namespace DeepSigma.DataAccess.Utilities
         /// </summary>
         /// <param name="KeyChain"></param>
         /// <param name="full_file_path"></param>
-        public static void GenerateKeyChainFile(Dictionary<string, KeyChainItem> KeyChain, string full_file_path)
+        public void ExportToNewKeyChainFile(Dictionary<string, KeyChainItem> KeyChain, string full_file_path)
         {
             ValidateNewFilePath(full_file_path);
             string text = SerializationUtilities.GetSerializedString(KeyChain);
             File.WriteAllText(full_file_path, text);
         }
 
+        /// <summary>
+        /// Saves the current key chain to the existing file path, overwriting any existing file.
+        /// </summary>
+        public void SaveKeyChainByOverwritingExistingFile()
+        {
+            ValidateNewFilePath(FilePath);
+            string text = SerializationUtilities.GetSerializedString(this);
+            File.WriteAllText(FilePath, text);
+        }
+
         private void LoadKeysFromFile()
         {
-            string json_text = File.ReadAllText(this.FilePath);
+            string json_text = File.ReadAllText(FilePath);
             Keys = SerializationUtilities.GetDeserializedObject<Dictionary<string, KeyChainItem>>(json_text) ?? [];
         }
 
         private static void ValidateExistingFilePath(string full_file_path)
         {
+            if(string.IsNullOrWhiteSpace(full_file_path))
+            {
+                throw new ArgumentException("File path is null or empty.", nameof(full_file_path));
+            }
+
             if (File.Exists(full_file_path) == false)
             {
                 throw new ArgumentException($"File does not exists: {full_file_path}");
@@ -88,6 +107,11 @@ namespace DeepSigma.DataAccess.Utilities
 
         private static void ValidateNewFilePath(string full_file_path)
         {
+            if (string.IsNullOrWhiteSpace(full_file_path))
+            {
+                throw new ArgumentException("File path is null or empty.", nameof(full_file_path));
+            }
+
             if (File.Exists(full_file_path))
             {
                 throw new ArgumentException($"File already exists: {full_file_path}");

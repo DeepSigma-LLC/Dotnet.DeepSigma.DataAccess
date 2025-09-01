@@ -23,16 +23,16 @@ namespace DeepSigma.DataAccess.API
         /// <typeparam name="T"></typeparam>
         /// <param name="url"></param>
         /// <param name="timeout_in_seconds"></param>
-        /// <param name="JsonLoggingMethod"></param>
+        /// <param name="ApiResultLoggingMethod"></param>
         /// <param name="cancel_token"></param>
         /// <returns></returns>
-        public static async Task<T?> GetDataFromURLAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
+        public static async Task<T?> GetDataFromURLAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? ApiResultLoggingMethod = null, CancellationToken cancel_token = default)
         {
             string? json = await GetJsonResponseAsync(url, timeout_in_seconds, cancel_token);
 
-            if (JsonLoggingMethod is not null)
+            if (ApiResultLoggingMethod is not null)
             {
-                JsonLoggingMethod(json);
+                ApiResultLoggingMethod(json);
             }
 
             if (string.IsNullOrWhiteSpace(json)) { return default; }
@@ -46,16 +46,16 @@ namespace DeepSigma.DataAccess.API
         /// <typeparam name="T"></typeparam>
         /// <param name="url"></param>
         /// <param name="timeout_in_seconds"></param>
-        /// <param name="JsonLoggingMethod"></param>
+        /// <param name="ApiResultLoggingMethod"></param>
         /// <param name="cancel_token"></param>
         /// <returns></returns>
-        public static async Task<List<T>> GetDataFromCSVAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? JsonLoggingMethod = null, CancellationToken cancel_token = default)
+        public static async Task<List<T>> GetDataFromCSVAsync<T>(string url, int timeout_in_seconds = 15, Action<string?>? ApiResultLoggingMethod = null, CancellationToken cancel_token = default)
         {
             string? csv = await GetCsvDataAsync(url, timeout_in_seconds, cancel_token);
 
-            if (JsonLoggingMethod is not null)
+            if (ApiResultLoggingMethod is not null)
             {
-                JsonLoggingMethod(csv);
+                ApiResultLoggingMethod(csv);
             }
 
             if (string.IsNullOrWhiteSpace(csv)) { return []; }

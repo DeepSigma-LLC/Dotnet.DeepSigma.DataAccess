@@ -1,5 +1,4 @@
-﻿
-namespace DeepSigma.DataAccess.Utilities
+﻿namespace DeepSigma.DataAccess.Models
 {
     /// <summary>
     /// Represents an item in a key chain with a display name and a key.
