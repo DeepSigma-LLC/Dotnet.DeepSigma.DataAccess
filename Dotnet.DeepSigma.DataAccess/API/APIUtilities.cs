@@ -118,14 +118,16 @@ namespace DeepSigma.DataAccess.API
         {
             JsonSerializerOptions opts = new()
             {
-                NumberHandling = JsonNumberHandling.AllowReadingFromString
+                NumberHandling = JsonNumberHandling.AllowReadingFromString,
+                PropertyNameCaseInsensitive = true,
             };
 
             Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json_text));
             T? dto = await JsonSerializer.DeserializeAsync<T>(stream, opts, cancellationToken: cancel_token);
 
             // Handle rate-limit / error messages
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancel_token);
+            stream.Position = 0;     // Rewind before parsing again
+            using var doc = await JsonDocument.ParseAsync(stream, default, cancel_token);
             var root = doc.RootElement;
             if (root.TryGetProperty("Note", out var note))
             {
