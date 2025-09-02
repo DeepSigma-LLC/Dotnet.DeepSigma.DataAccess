@@ -36,7 +36,7 @@ namespace DeepSigma.DataAccess.API
             }
 
             if (string.IsNullOrWhiteSpace(json)) { return default; }
-            T? results = LoadFromJson<T>(json, cancel_token);
+            T? results = LoadFromJson<T>(json);
             return results;
         }
 
@@ -111,10 +111,9 @@ namespace DeepSigma.DataAccess.API
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="json_text"></param>
-        /// <param name="cancel_token"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static T? LoadFromJson<T>(string json_text, CancellationToken cancel_token = default)
+        public static T? LoadFromJson<T>(string json_text)
         {
             if (string.IsNullOrWhiteSpace(json_text)) { return default; }
 
