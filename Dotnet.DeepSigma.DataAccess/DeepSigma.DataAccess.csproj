@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess</PackageId>
 	<AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>1.0.0.8</Version>
+    <Version>1.0.0.9</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess</RootNamespace>
   </PropertyGroup>
@@ -28,6 +28,10 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
     <PackageReference Include="StackExchange.Redis" Version="2.8.58" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Models\" />
   </ItemGroup>
 
 </Project>
