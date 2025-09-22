@@ -12,7 +12,7 @@ namespace DeepSigma.DataAccess.Database
         private string ConnectionString { get; set; } = connection_string;
         private MongoClient Client { get; set; } = new(connection_string);
 
-        public async Task<T?> GetByIdAsync<T>(string database_name, string collection_name, string id, CancellationToken ct = default) where T : IDocument
+        public async Task<T?> GetByIdAsync<T>(string database_name, string collection_name, string id, CancellationToken ct = default) where T : IMongoDocument
         {
             IMongoDatabase database = Client.GetDatabase(database_name);
             IMongoCollection<T> collection = database.GetCollection<T>(collection_name);
@@ -53,7 +53,7 @@ namespace DeepSigma.DataAccess.Database
             await collection.InsertManyAsync(documents, cancellationToken: ct);
         }
 
-        public async Task<bool> ReplaceAsync<T>(string database_name, string collection_name, T document, bool upsert = false, CancellationToken ct = default) where T : IDocument
+        public async Task<bool> ReplaceAsync<T>(string database_name, string collection_name, T document, bool upsert = false, CancellationToken ct = default) where T : IMongoDocument
         {
             IMongoDatabase database = Client.GetDatabase(database_name);
             IMongoCollection<T> collection = database.GetCollection<T>(collection_name);
@@ -62,7 +62,7 @@ namespace DeepSigma.DataAccess.Database
             return result.IsAcknowledged && result.ModifiedCount + (upsert ? result.UpsertedId == null ? 0 : 1 : 0) > 0;
         }
 
-        public async Task<bool> DeleteAsync<T>(string database_name, string collection_name, string id, CancellationToken ct = default) where T : IDocument
+        public async Task<bool> DeleteAsync<T>(string database_name, string collection_name, string id, CancellationToken ct = default) where T : IMongoDocument
         {
             IMongoDatabase database = Client.GetDatabase(database_name);
             IMongoCollection<T> collection = database.GetCollection<T>(collection_name);

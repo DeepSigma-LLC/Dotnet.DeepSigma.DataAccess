@@ -3,7 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace DeepSigma.DataAccess.Models
 {
-    public interface IDocument
+    public interface IMongoDocument
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]

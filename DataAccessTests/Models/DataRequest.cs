@@ -6,7 +6,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace DataAccessTests.Models
 {
-    public class DataRequest(string name, string description, List<int> items, string id = "") : IDocument
+    public class DataRequest(string name, string description, List<int> items, string id = "") : IMongoDocument
     {
         public string Name { get; set; } = name;
         public string Description { get; set; } = description;
