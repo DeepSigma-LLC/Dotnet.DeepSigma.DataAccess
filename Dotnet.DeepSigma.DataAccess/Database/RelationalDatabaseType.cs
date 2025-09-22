@@ -9,7 +9,7 @@ namespace DeepSigma.DataAccess.Database
     /// <summary>
     /// Specifies the type of database being used.
     /// </summary>
-    public enum DatabaseType
+    public enum RelationalDatabaseType
     {
         /// <summary>
         /// Microsoft SQL Server database.

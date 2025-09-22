@@ -8,8 +8,8 @@ namespace DeepSigma.DataAccess.Database
     public class DatabaseAPI
     {
         private string connection_string {  get; set; }
-        private DatabaseType database_type { get; set; }
-        public DatabaseAPI(string connection_string, DatabaseType database_type, int connection_timeout = 10)
+        private RelationalDatabaseType database_type { get; set; }
+        public DatabaseAPI(string connection_string, RelationalDatabaseType database_type, int connection_timeout = 10)
         { 
             this.connection_string = connection_string;
             this.database_type = database_type;
@@ -119,8 +119,8 @@ namespace DeepSigma.DataAccess.Database
         {
             return database_type switch
             {
-                DatabaseType.SQLServer => new SqlConnection(connection_string),
-                DatabaseType.Postgres => new NpgsqlConnection(connection_string),
+                RelationalDatabaseType.SQLServer => new SqlConnection(connection_string),
+                RelationalDatabaseType.Postgres => new NpgsqlConnection(connection_string),
                 _ => throw new NotSupportedException()
             };
         }
