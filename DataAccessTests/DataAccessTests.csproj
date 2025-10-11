@@ -9,13 +9,17 @@
   <ItemGroup>
     <Content Remove="C:\Users\brend\.nuget\packages\deepsigma.unittest\1.0.0.1\contentFiles\any\net9.0\testhost.dll" />
     <Content Remove="C:\Users\brend\.nuget\packages\deepsigma.unittest\1.0.0.1\contentFiles\any\net9.0\testhost.exe" />
+    <Content Remove="C:\Users\brend\.nuget\packages\deepsigma.unittest\1.0.1\contentFiles\any\net10.0\testhost.dll" />
+    <Content Remove="C:\Users\brend\.nuget\packages\deepsigma.unittest\1.0.1\contentFiles\any\net10.0\testhost.exe" />
+    <Content Remove="C:\Users\brend\.nuget\packages\microsoft.testplatform.testhost\17.14.1\build\net8.0\x64\testhost.dll" />
+    <Content Remove="C:\Users\brend\.nuget\packages\microsoft.testplatform.testhost\17.14.1\build\net8.0\x64\testhost.exe" />
   </ItemGroup>
 
   <ItemGroup>
 	<PackageReference Include="DeepSigma.General" Version="1.0.2" />
-	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
     <PackageReference Include="DeepSigma.UnitTest" Version="1.0.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
