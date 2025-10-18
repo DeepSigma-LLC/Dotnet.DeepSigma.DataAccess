@@ -1,9 +1,7 @@
 ﻿
  /*Get foriegn key constraints*/
    SELECT
-        fk.CONSTRAINT_NAME,
-        --fk.TABLE_SCHEMA AS ForeignTableSchema,
-        --fk.TABLE_NAME AS ForeignTableName,
+        fk.CONSTRAINT_NAME ConstraintName,
         kcu.COLUMN_NAME AS ForeignColumnName,
         pk.TABLE_SCHEMA AS PrimaryTableSchema,
         pk.TABLE_NAME AS PrimaryTableName,

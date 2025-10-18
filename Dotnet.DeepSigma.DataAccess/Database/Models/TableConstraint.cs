@@ -6,9 +6,23 @@ namespace DeepSigma.DataAccess.Database.Models;
 /// </summary>
 public class TableConstraint()
 {
-    public string? CONSTRAINT_NAME { get; set; }
-    public string? TABLE_SCHEMA { get; set; } 
-    public string? TABLE_NAME { get; set; }
+    /// <summary>
+    /// The name of the constraint.
+    /// </summary>
+    public string? ConstraintName { get; set; }
+    /// <summary>
+    /// The schema of the table containing the constraint.
+    /// </summary>
+    public string? TableSchema { get; set; }
+    /// <summary>
+    /// The name of the table containing the constraint.
+    /// </summary>
+    public string? TableName { get; set; }
+    /// <summary>
+    /// The name of the column associated with the constraint.
+    /// </summary>
+    public string? ColumnName { get; set; }
+
 }
 
 

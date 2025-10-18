@@ -9,6 +9,12 @@ namespace DeepSigma.DataAccess.Database.Models;
 /// <param name="TABLE_NAME"></param>
 public class TableName()
 {
-    public string? TABLE_SCHEMA { get; set; }
-    public string? TABLE_NAME { get; set; }
+    /// <summary>
+    /// The schema of the table.
+    /// </summary>
+    public string? TableSchema { get; set; }
+    /// <summary>
+    /// The name of the table.
+    /// </summary>
+    public string? Name { get; set; }
 }

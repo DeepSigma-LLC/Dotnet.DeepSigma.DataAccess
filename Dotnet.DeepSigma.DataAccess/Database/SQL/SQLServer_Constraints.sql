@@ -2,10 +2,10 @@
 
 /*Get constraints*/
   SELECT
-        tc.CONSTRAINT_NAME,
-        tc.TABLE_SCHEMA,
-        tc.TABLE_NAME,
-        kcu.COLUMN_NAME
+        tc.CONSTRAINT_NAME ConstraintName,
+        tc.TABLE_SCHEMA TableSchema,
+        tc.TABLE_NAME TableName,
+        kcu.COLUMN_NAME ColumnName
     FROM
         INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS tc
     JOIN
