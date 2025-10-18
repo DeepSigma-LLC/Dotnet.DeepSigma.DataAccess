@@ -7,4 +7,8 @@ namespace DeepSigma.DataAccess.Database.Models;
 /// </summary>
 /// <param name="TABLE_SCHEMA"></param>
 /// <param name="TABLE_NAME"></param>
-public record class TableName(string TABLE_SCHEMA, string TABLE_NAME);
+public class TableName()
+{
+    public string? TABLE_SCHEMA { get; set; }
+    public string? TABLE_NAME { get; set; }
+}

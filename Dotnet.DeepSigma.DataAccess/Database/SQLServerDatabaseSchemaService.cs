@@ -9,7 +9,8 @@ namespace DeepSigma.DataAccess.Database;
 /// <param name="connection_timeout"></param>
 public class SQLServerDatabaseSchemaService(string connection_string, int connection_timeout = 10)
 {
-    DatabaseAPI API { get; set; } = new(connection_string, RelationalDatabaseType.SQLServer, connection_timeout);
+    DatabaseAPI API { get; init; } = new(connection_string, RelationalDatabaseType.SQLServer, connection_timeout);
+    string BaseDirectory { get; init; } = AppDomain.CurrentDomain.BaseDirectory;
 
     /// <summary>
     /// Gets the list of tables in the SQL Server database.
@@ -17,7 +18,8 @@ public class SQLServerDatabaseSchemaService(string connection_string, int connec
     /// <returns></returns>
     public async Task<IEnumerable<TableName>> GetTables()
     {
-        string sql = File.ReadAllText(@"\SQL\SQLServer_TableNames.sql");
+        string path = Path.Combine(BaseDirectory, "Database" ,"SQL", "SQLServer_TableNames.sql");
+        string sql = File.ReadAllText(path);
         IEnumerable<TableName> results = await API.GetAllAsync<TableName>(sql);
         return results;
     }
@@ -28,7 +30,8 @@ public class SQLServerDatabaseSchemaService(string connection_string, int connec
     /// <returns></returns>
     public async Task<IEnumerable<TableField>> GetTableFields()
     {
-        string sql = File.ReadAllText(@"\SQL\SQLServer_TableAndFieldInfo.sql");
+        string path = Path.Combine(BaseDirectory, "Database", "SQL", "SQLServer_TableAndFieldInfo.sql");
+        string sql = File.ReadAllText(path);
         IEnumerable<TableField> results = await API.GetAllAsync<TableField>(sql);
         return results;
     }
@@ -39,7 +42,8 @@ public class SQLServerDatabaseSchemaService(string connection_string, int connec
     /// <returns></returns>
     public async Task<IEnumerable<TableConstraint>> GetConstraints()
     {
-        string sql = File.ReadAllText(@"\SQL\SQLServer_Constraints.sql");
+        string path = Path.Combine(BaseDirectory, "Database", "SQL", "SQLServer_Constraints.sql");
+        string sql = File.ReadAllText(path);
         IEnumerable<TableConstraint> results = await API.GetAllAsync<TableConstraint>(sql);
         return results;
     }
@@ -50,7 +54,8 @@ public class SQLServerDatabaseSchemaService(string connection_string, int connec
     /// <returns></returns>
     public async Task<IEnumerable<TableForeignKey>> GetForiegnKeys()
     {
-        string sql = File.ReadAllText(@"\SQL\SQLServer_ForeignKeyConstraints.sql");
+        string path = Path.Combine(BaseDirectory, "Database", "SQL", "SQLServer_ForeignKeyConstraints.sql");
+        string sql = File.ReadAllText(path);
         IEnumerable<TableForeignKey> results = await API.GetAllAsync<TableForeignKey>(sql);
         return results;
     }

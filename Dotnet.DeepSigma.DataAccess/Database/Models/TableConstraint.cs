@@ -1,10 +1,14 @@
 ﻿
 namespace DeepSigma.DataAccess.Database.Models;
 
-public record class TableConstraint
-(
-    string CONSTRAINT_NAME,
-    string TABLE_SCHEMA,
-    string TABLE_NAME,
-    string COLUMN_NAME
-);
+/// <summary>
+/// Represents a constraint on a database table.
+/// </summary>
+public class TableConstraint()
+{
+    public string? CONSTRAINT_NAME { get; set; }
+    public string? TABLE_SCHEMA { get; set; } 
+    public string? TABLE_NAME { get; set; }
+}
+
+
