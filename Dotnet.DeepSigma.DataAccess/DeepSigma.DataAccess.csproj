@@ -19,6 +19,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Database\SQL\SQLServer_ForeignKeyConstraints.sql" />
+    <Compile Include="Database\SQL\SQLServer_TableAndFieldInfo.sql" />
+    <Compile Include="Database\SQL\SQLServer_TableNames.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.25.1" />
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Dapper" Version="2.1.66" />

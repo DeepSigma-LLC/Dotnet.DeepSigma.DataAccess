@@ -41,6 +41,20 @@ public class DatabaseAPI
     }
 
     /// <summary>
+    /// Gets all records from the database based on the provided SQL query and parameters.
+    /// </summary>
+    /// <typeparam name="P"></typeparam>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="sql"></param>
+    /// <param name="command_timout"></param>
+    /// <returns></returns>
+    public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? command_timout = null)
+    {
+        using var connection = CreateConnection();
+        return await connection.QueryAsync<T>(sql, commandTimeout: command_timout);
+    }
+
+    /// <summary>
     /// Gets a single record by its ID from the database based on the provided SQL query.
     /// </summary>
     /// <typeparam name="T"></typeparam>
