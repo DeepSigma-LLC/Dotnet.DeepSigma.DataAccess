@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36301.6
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11206.111 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess", "DeepSigma.DataAccess.csproj", "{F3BBC8BC-3BFD-481F-BCB9-61917EA14F06}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataAccessTests", "..\DataAccessTests\DataAccessTests.csproj", "{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigmaa.DataAccess.Tests", "..\DataAccessTests\DeepSigmaa.DataAccess.Tests.csproj", "{C55589C5-3BE2-4323-BDFF-DAA9ACFA8E30}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
