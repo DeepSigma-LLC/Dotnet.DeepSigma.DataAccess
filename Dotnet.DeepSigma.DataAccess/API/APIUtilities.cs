@@ -1,6 +1,8 @@
 ﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeepSigma.DataAccess.CsvUtilities.Reading;
+using DeepSigma.DataAccess.CsvUtilities.Results;
 
 namespace DeepSigma.DataAccess.API;
 
@@ -52,7 +54,7 @@ public static class APIUtilities
         }
 
         if (string.IsNullOrWhiteSpace(csv)) { return []; }
-        List<T> results = LoadFromCSV<T>(csv);
+        List<T> results = LoadFromCSV<T>(csv) ?? []; // If CSV parsing fails, we return an empty list rather than null.
         return results;
     }
 
@@ -140,9 +142,9 @@ public static class APIUtilities
     /// <typeparam name="T"></typeparam>
     /// <param name="csvText"></param>
     /// <returns></returns>
-    public static List<T> LoadFromCSV<T>(string csvText) where T : class
+    public static List<T>? LoadFromCSV<T>(string csvText) where T : class
     {
-        IEnumerable<T> results = Utilities.CsvUtilities.LoadObjectsFromCSV<T>(csvText);
-        return results.ToList();
+        CsvImportResult<T> results = CsvReader.ReadFromStringSafe<T>(csvText);
+        return results.IsSuccess ? results.Records : null;
     }
 }
