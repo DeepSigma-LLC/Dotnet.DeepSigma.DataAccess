@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>DeepSigma.DataAccess.Cosmos</Title>
+    <Authors>DeepSigma LLC</Authors>
+    <Description>Azure Cosmos DB access for DeepSigma applications.</Description>
+    <PackageDescription>Azure Cosmos DB access for DeepSigma applications.</PackageDescription>
+    <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
+    <PackageId>DeepSigma.DataAccess.Cosmos</PackageId>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <Version>1.0.0.0</Version>
+    <FileVersion>$(Version)</FileVersion>
+    <RootNamespace>DeepSigma.DataAccess.Cosmos</RootNamespace>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <PackageIcon>DeepSigma.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\Assets\DeepSigma.png" Link="DeepSigma.png" Pack="True" PackagePath="\" />
+    <None Include="README.md" Pack="True" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DeepSigma.Core" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
+  </ItemGroup>
+
+</Project>

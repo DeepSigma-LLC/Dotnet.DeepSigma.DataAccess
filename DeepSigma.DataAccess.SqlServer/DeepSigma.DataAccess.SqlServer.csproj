@@ -5,17 +5,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>DeepSigma.DataAccess.Postgres</Title>
+    <Title>DeepSigma.DataAccess.SqlServer</Title>
     <Authors>DeepSigma LLC</Authors>
-    <Description>PostgreSQL provider for DeepSigma.DataAccess.RelationalDatabase.</Description>
-    <PackageDescription>PostgreSQL provider for DeepSigma.DataAccess.RelationalDatabase.</PackageDescription>
+    <Description>SQL Server provider for DeepSigma.DataAccess.RelationalDatabase.</Description>
+    <PackageDescription>SQL Server provider for DeepSigma.DataAccess.RelationalDatabase.</PackageDescription>
     <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
-    <PackageId>DeepSigma.DataAccess.Postgres</PackageId>
+    <PackageId>DeepSigma.DataAccess.SqlServer</PackageId>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <Version>1.0.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
-    <RootNamespace>DeepSigma.DataAccess.Postgres</RootNamespace>
+    <RootNamespace>DeepSigma.DataAccess.SqlServer</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageIcon>DeepSigma.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,22 +36,22 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="SQL\Postgres_TableNames.sql">
+    <None Update="SQL\SqlServer_TableNames.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>True</Pack>
       <PackagePath>contentFiles\any\any\SQL;content\SQL</PackagePath>
     </None>
-    <None Update="SQL\Postgres_TableAndFieldInfo.sql">
+    <None Update="SQL\SqlServer_TableAndFieldInfo.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>True</Pack>
       <PackagePath>contentFiles\any\any\SQL;content\SQL</PackagePath>
     </None>
-    <None Update="SQL\Postgres_Constraints.sql">
+    <None Update="SQL\SqlServer_Constraints.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>True</Pack>
       <PackagePath>contentFiles\any\any\SQL;content\SQL</PackagePath>
     </None>
-    <None Update="SQL\Postgres_ForeignKeyConstraints.sql">
+    <None Update="SQL\SqlServer_ForeignKeyConstraints.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>True</Pack>
       <PackagePath>contentFiles\any\any\SQL;content\SQL</PackagePath>

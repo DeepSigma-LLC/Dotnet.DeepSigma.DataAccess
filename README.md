@@ -1,249 +1,130 @@
 # DeepSigma.DataAccess
 
-A general-purpose .NET data access library that bundles common patterns for working with relational databases, MongoDB, Azure Cosmos DB, Azure Blob Storage, Redis, and remote API payloads in one package.
+A modular family of .NET data-access packages for relational databases, document stores, caches, blob storage, and HTTP APIs. Each storage technology is shipped as its own NuGet package so consumers only pull in the dependencies they actually use.
 
-## Features
+This repository contains 9 published packages plus shared abstractions. They target **.NET 10.0** and are MIT-licensed.
 
-- Relational database access for **SQL Server** and **PostgreSQL** via Dapper
-- SQL Server schema inspection helpers for:
-  - tables
-  - table fields
-  - constraints
-  - foreign keys
-- MongoDB CRUD helpers built around an `IMongoDocument` contract
-- Azure Cosmos DB helpers for databases, containers, inserts, queries, updates, deletes, and throughput scaling
-- Azure Blob Storage upload, download, delete, and list operations
-- Redis cache get, set, and remove helpers
-- API utilities for downloading and deserializing **JSON** and **CSV**
-- XML serialization and deserialization helpers
+## Why modular packages?
 
-## Target framework
+The previous `DeepSigma.DataAccess` (1.x) was a single package that bundled Azure SDKs, MongoDB, SQL Server, Postgres, Redis, and HTTP utilities together. Consumers needing only Postgres ended up with Cosmos, Mongo, and Redis transitively.
 
-This package targets **.NET 10.0**.
+The 2.x layout splits each storage concern into its own package, with a small shared `Abstraction` package holding interfaces and models. Provider packages depend only on what they need.
 
-## Installation
+## Package matrix
 
-### NuGet
+| Package | Purpose | Key dependency |
+|---|---|---|
+| [DeepSigma.DataAccess.Abstraction](DeepSigma.DataAccess.Abstraction/README.md) | Shared interfaces (`IDbConnectionFactory`, `IDatabaseSchemaService`) and schema models (`TableName`, `TableField`, `TableConstraint`, `TableForeignKey`). | _(none)_ |
+| [DeepSigma.DataAccess.RelationalDatabase](DeepSigma.DataAccess.RelationalDatabase/README.md) | Shared Dapper-backed `RelationalDatabaseAPI`. Pair with a provider package. | Dapper |
+| [DeepSigma.DataAccess.SqlServer](DeepSigma.DataAccess.SqlServer/README.md) | SQL Server connection factory + schema service. | Microsoft.Data.SqlClient |
+| [DeepSigma.DataAccess.Postgres](DeepSigma.DataAccess.Postgres/README.md) | PostgreSQL connection factory + schema service. | Npgsql |
+| [DeepSigma.DataAccess.MongoDB](DeepSigma.DataAccess.MongoDB/README.md) | MongoDB CRUD helpers built around an `IMongoDocument` contract. | MongoDB.Driver |
+| [DeepSigma.DataAccess.Cosmos](DeepSigma.DataAccess.Cosmos/README.md) | Azure Cosmos DB helpers for databases, containers, items, and throughput. | Microsoft.Azure.Cosmos, DeepSigma.Core |
+| [DeepSigma.DataAccess.Redis](DeepSigma.DataAccess.Redis/README.md) | Redis cache get/set/remove helpers. | StackExchange.Redis, Newtonsoft.Json |
+| [DeepSigma.DataAccess.AzureBlobStorage](DeepSigma.DataAccess.AzureBlobStorage/README.md) | Azure Blob Storage upload, download, delete, and list. | Azure.Storage.Blobs |
+| [DeepSigma.DataAccess.Http](DeepSigma.DataAccess.Http/README.md) | Helpers for fetching and deserializing JSON / CSV API payloads. | DeepSigma.DataAccess.CsvUtilities |
+
+## Dependency graph
+
+```
+                          Abstraction
+                         /     |
+                        /      |
+        RelationalDatabase     |
+            /        \         |
+       SqlServer    Postgres   |
+                               |
+   (independent leaves)        |
+   MongoDB                     |
+   Cosmos ─── DeepSigma.Core   |
+   Redis                       |
+   AzureBlobStorage            |
+   Http ───── DeepSigma.DataAccess.CsvUtilities
+```
+
+- **Abstraction** has no dependencies.
+- **RelationalDatabase** depends on Abstraction + Dapper.
+- **SqlServer** and **Postgres** depend on RelationalDatabase (and transitively Abstraction).
+- **MongoDB**, **Cosmos**, **Redis**, **AzureBlobStorage**, and **Http** are independent of the relational stack — they each ship only their own driver dependency.
+
+## Choosing what to install
+
+Pick the packages that match the stores you use:
+
+- "I just want to call Postgres with Dapper" → install **DeepSigma.DataAccess.Postgres** (pulls Abstraction + RelationalDatabase + Npgsql).
+- "I just want SQL Server schema discovery" → install **DeepSigma.DataAccess.SqlServer**.
+- "I just need Mongo CRUD" → install **DeepSigma.DataAccess.MongoDB**.
+- "Cosmos + Blob + Redis" → install those three packages independently; no relational dependencies will come along.
+
+## Quick start: relational + provider
 
 ```bash
-dotnet add package DeepSigma.DataAccess
+dotnet add package DeepSigma.DataAccess.Postgres
 ```
 
-### Project reference
+```csharp
+using DeepSigma.DataAccess.Abstraction;
+using DeepSigma.DataAccess.Postgres;
+using DeepSigma.DataAccess.RelationalDatabase;
 
-```xml
-<ProjectReference Include="..\Dotnet.DeepSigma.DataAccess\DeepSigma.DataAccess.csproj" />
+IDbConnectionFactory factory = new PostgresConnectionFactory(
+    "Host=localhost;Database=appdb;Username=postgres;Password=postgres");
+
+var db = new RelationalDatabaseAPI(factory);
+
+var users = await db.GetAllAsync<dynamic>("SELECT id, name FROM users WHERE active = TRUE");
 ```
 
-## Package dependencies
+To swap to SQL Server, change the factory and the connection string — `RelationalDatabaseAPI` stays the same:
 
-The library references these primary packages:
+```csharp
+IDbConnectionFactory factory = new SqlServerConnectionFactory(
+    "Server=localhost;Database=AppDb;Integrated Security=True;TrustServerCertificate=True;");
+```
 
-- Azure.Storage.Blobs
-- CsvHelper
-- Dapper
-- DeepSigma.General
-- Microsoft.Azure.Cosmos
-- Microsoft.Data.SqlClient
-- MongoDB.Driver
-- Newtonsoft.Json
-- Npgsql
-- StackExchange.Redis
-
-## Project structure
+## Repository layout
 
 ```text
 Dotnet.DeepSigma.DataAccess/
-├── Dotnet.DeepSigma.DataAccess/
-│   ├── API/
-│   │   └── APIUtilities.cs
-│   ├── Database/
-│   │   ├── BlobStorageAPI.cs
-│   │   ├── CosmosDBAPI.cs
-│   │   ├── DatabaseAPI.cs
-│   │   ├── MongoDBAPI.cs
-│   │   ├── RedisCacheAPI.cs
-│   │   ├── RelationalDatabaseType.cs
-│   │   ├── SQLServerDatabaseSchemaService.cs
-│   │   └── SQL/
-│   ├── Models/
-│   │   └── IMongoDocument.cs
-│   ├── Utilities/
-│   │   ├── CsvUtilities.cs
-│   │   ├── ObjectUtilities.cs
-│   │   └── XMLUtilities.cs
-│   └── DeepSigma.DataAccess.csproj
-└── DataAccessTests/
-    ├── Models/
-    │   └── DataRequest.cs
-    ├── Tests/
-    │   ├── MongoDB_Tests.cs
-    │   └── SQLDatabaseSchema_Tests.cs
-    └── DeepSigmaa.DataAccess.Tests.csproj
+├── Assets/
+│   └── DeepSigma.png                          (shared NuGet package icon)
+├── DeepSigma.DataAccess.sln
+├── README.md                                  (this file)
+├── LICENSE
+│
+├── DeepSigma.DataAccess.Abstraction/
+├── DeepSigma.DataAccess.RelationalDatabase/
+├── DeepSigma.DataAccess.SqlServer/
+├── DeepSigma.DataAccess.Postgres/
+├── DeepSigma.DataAccess.MongoDB/
+├── DeepSigma.DataAccess.Cosmos/
+├── DeepSigma.DataAccess.Redis/
+├── DeepSigma.DataAccess.AzureBlobStorage/
+├── DeepSigma.DataAccess.Http/
+│
+├── DeepSigma.DataAccess.MongoDB.Tests/
+└── DeepSigma.DataAccess.SqlServer.Tests/
 ```
 
-## Usage
-
-### Relational databases with Dapper
-
-`DatabaseAPI` wraps Dapper and creates connections for either SQL Server or PostgreSQL.
-
-```csharp
-using DeepSigma.DataAccess.Database;
-using Dapper;
-
-var api = new DatabaseAPI(
-    connection_string: "Server=localhost;Database=AppDb;Trusted_Connection=True;",
-    database_type: RelationalDatabaseType.SQLServer
-);
-
-var users = await api.GetAllAsync<dynamic>(
-    "SELECT Id, Name FROM Users WHERE IsActive = @IsActive",
-    new DynamicParameters(new { IsActive = true })
-);
-```
-
-### SQL Server schema discovery
-
-`SQLServerDatabaseSchemaService` reads packaged SQL files and exposes helpers for schema metadata.
-
-```csharp
-using DeepSigma.DataAccess.Database;
-
-var schema = new SQLServerDatabaseSchemaService(
-    "Data Source=localhost;Database=MyDb;Integrated Security=True;TrustServerCertificate=True;"
-);
-
-var tables = await schema.GetTables();
-var fields = await schema.GetTableFields();
-var constraints = await schema.GetConstraints();
-var foreignKeys = await schema.GetForiegnKeys();
-```
-
-### MongoDB
-
-MongoDB documents implement `IMongoDocument`, which requires an `Id` property.
-
-```csharp
-using DeepSigma.DataAccess.Database;
-using DeepSigma.DataAccess.Models;
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
-
-public class DataRequest : IMongoDocument
-{
-    public string Name { get; set; } = "";
-    public string Description { get; set; } = "";
-
-    [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; } = "";
-}
-
-var mongo = new MongoDBAPI("mongodb://localhost:27017/");
-
-await mongo.InsertAsync("TestDB", "Requests", new DataRequest
-{
-    Id = "68d0a9d8ad3512e0e907c0cb",
-    Name = "Test1",
-    Description = "A test description"
-});
-
-var item = await mongo.GetByIdAsync<DataRequest>(
-    "TestDB",
-    "Requests",
-    "68d0a9d8ad3512e0e907c0cb"
-);
-```
-
-### Azure Cosmos DB
-
-```csharp
-using DeepSigma.DataAccess.Database;
-
-var cosmos = new CosmosDBAPI(
-    end_point_uri: "<endpoint>",
-    api_key: "<key>",
-    app_name: "DeepSigmaApp"
-);
-
-await cosmos.CreateDatabaseAsync("AppDb");
-await cosmos.CreateContainerAsync("AppDb", "Requests", "tenantId", throughput: 400);
-```
-
-### Azure Blob Storage
-
-```csharp
-using DeepSigma.DataAccess.Database;
-
-var blobs = new BlobStorageAPI("<connection-string>", "documents");
-
-await blobs.UploadToBlob("report.pdf", allowOverwrite: true);
-var names = await blobs.ListAllItemsBlobs();
-await blobs.DownloadFromBlob("report.pdf", "downloads/report.pdf");
-```
-
-### Redis cache
-
-```csharp
-using DeepSigma.DataAccess.Database;
-
-var cache = new RedisCacheAPI("<redis-connection>", "app");
-
-await cache.SetCacheData("user:42", new { Name = "Ada" }, DateTimeOffset.UtcNow.AddMinutes(30));
-var value = await cache.GetCacheData<dynamic>("user:42");
-await cache.RemoveCacheData("user:42");
-```
-
-### Fetching JSON and CSV from APIs
-
-```csharp
-using DeepSigma.DataAccess.API;
-
-var weather = await APIUtilities.GetDataFromURLAsync<MyDto>(
-    "https://example.com/data.json"
-);
-
-var rows = await APIUtilities.GetDataFromCSVAsync<MyCsvRow>(
-    "https://example.com/data.csv"
-);
-```
-
-### XML serialization
-
-```csharp
-using DeepSigma.DataAccess.Utilities;
-
-var xml = XMLUtilities.Serialize(myObject);
-var restored = XMLUtilities.GetObject<MyType>("my-file.xml");
-```
+Every package has its own `README.md` covering installation, dependencies, surface area, and a runnable quick-start example. They're linked from the [package matrix](#package-matrix) above and ship with the NuGet package itself.
 
 ## Tests
 
-The repository includes an xUnit-based test project covering:
+Two xUnit-based test projects:
 
-- MongoDB insert, delete, delete-many, count, find, and get-by-id flows
-- SQL Server schema service methods for tables, constraints, foreign keys, and fields
+- `DeepSigma.DataAccess.MongoDB.Tests` — exercises the MongoDB CRUD helpers against `mongodb://localhost:27017/`.
+- `DeepSigma.DataAccess.SqlServer.Tests` — exercises the SQL Server schema service against a local SQL Server instance with a database named `AutoML`.
 
-The current tests are written as integration-style tests and expect local infrastructure such as:
-
-- MongoDB on `mongodb://localhost:27017/`
-- SQL Server on `localhost` with a database named `AutoML`
-
-## Running tests
+Both are integration tests that hit real local infrastructure. Provision the services (or update the connection strings) before running:
 
 ```bash
-dotnet test Dotnet.DeepSigma.DataAccess/DeepSigma.DataAccess.sln
+dotnet test DeepSigma.DataAccess.sln
 ```
 
-Because the test suite relies on local services and specific connection details, you may need to update connection strings or provision local databases before running it successfully.
+## Target framework
 
-## Notes
-
-- The library generates a NuGet package on build.
-- SQL schema query files are included in the package output so `SQLServerDatabaseSchemaService` can load them at runtime.
-- The package icon is stored at `Assets/DeepSigma.png`.
+All packages target **.NET 10.0**.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
