@@ -13,7 +13,7 @@ public class SqlServerSchema_Tests
     public async Task GetTablesShouldReturnValues()
     {
         SqlServerSchemaService service = new(connection);
-        IEnumerable<TableName> tables = await service.GetTables();
+        IEnumerable<TableName> tables = await service.GetTablesAsync(TestContext.Current.CancellationToken);
 
         Assert.True(tables.Count() > 0);
     }
@@ -22,7 +22,7 @@ public class SqlServerSchema_Tests
     public async Task GetConstraintsShouldGetValues()
     {
         SqlServerSchemaService service = new(connection);
-        IEnumerable<TableConstraint> tables = await service.GetConstraints();
+        IEnumerable<TableConstraint> tables = await service.GetConstraintsAsync(TestContext.Current.CancellationToken);
 
         Assert.True(tables.Count() > 0);
     }
@@ -31,7 +31,7 @@ public class SqlServerSchema_Tests
     public async Task GetFKShouldGetValues()
     {
         SqlServerSchemaService service = new(connection);
-        IEnumerable<TableForeignKey> tables = await service.GetForeignKeys();
+        IEnumerable<TableForeignKey> tables = await service.GetForeignKeysAsync(TestContext.Current.CancellationToken);
 
         Assert.True(tables.Count() > 0);
     }
@@ -40,7 +40,7 @@ public class SqlServerSchema_Tests
     public async Task GetTableFieldShouldGetValues()
     {
         SqlServerSchemaService service = new(connection);
-        IEnumerable<TableField> tables = await service.GetTableFields();
+        IEnumerable<TableField> tables = await service.GetTableFieldsAsync(TestContext.Current.CancellationToken);
 
         Assert.True(tables.Count() > 0);
     }

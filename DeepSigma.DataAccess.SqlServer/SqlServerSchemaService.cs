@@ -35,7 +35,7 @@ public class SqlServerSchemaService : IDatabaseSchemaService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableName>> GetTables(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<TableName>> GetTablesAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SqlServerSchemaService: executing schema query");
         string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "SqlServer_TableNames.sql"), cancellationToken);
@@ -43,7 +43,7 @@ public class SqlServerSchemaService : IDatabaseSchemaService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableField>> GetTableFields(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<TableField>> GetTableFieldsAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SqlServerSchemaService: executing schema query");
         string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "SqlServer_TableAndFieldInfo.sql"), cancellationToken);
@@ -51,7 +51,7 @@ public class SqlServerSchemaService : IDatabaseSchemaService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableConstraint>> GetConstraints(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<TableConstraint>> GetConstraintsAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SqlServerSchemaService: executing schema query");
         string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "SqlServer_Constraints.sql"), cancellationToken);
@@ -59,7 +59,7 @@ public class SqlServerSchemaService : IDatabaseSchemaService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableForeignKey>> GetForeignKeys(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<TableForeignKey>> GetForeignKeysAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("SqlServerSchemaService: executing schema query");
         string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "SqlServer_ForeignKeyConstraints.sql"), cancellationToken);

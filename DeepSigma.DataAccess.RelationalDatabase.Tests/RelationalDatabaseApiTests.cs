@@ -22,7 +22,9 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task GetAllAsync_returns_all_rows()
     {
-        IEnumerable<Item> items = await _db.GetAllAsync<Item>("SELECT id, name, price FROM items");
+        var ct = TestContext.Current.CancellationToken;
+        IEnumerable<Item> items = await _db.GetAllAsync<Item>(
+            "SELECT id, name, price FROM items", cancellationToken: ct);
 
         Assert.Equal(3, items.Count());
     }
@@ -30,9 +32,10 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task GetAllAsync_with_params_filters_rows()
     {
+        var ct = TestContext.Current.CancellationToken;
         IEnumerable<Item> items = await _db.GetAllAsync<object, Item>(
             "SELECT id, name, price FROM items WHERE price >= @Min",
-            new { Min = 1.0 });
+            new { Min = 1.0 }, cancellationToken: ct);
 
         Assert.Equal(2, items.Count());
         Assert.All(items, i => Assert.True(i.Price >= 1.0));
@@ -41,8 +44,9 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task GetByIdAsync_returns_row_by_int_id()
     {
+        var ct = TestContext.Current.CancellationToken;
         Item? item = await _db.GetByIdAsync<Item>(
-            "SELECT id, name, price FROM items WHERE id = @Id", id: 1);
+            "SELECT id, name, price FROM items WHERE id = @Id", id: 1, cancellationToken: ct);
 
         Assert.NotNull(item);
         Assert.Equal("apple", item!.Name);
@@ -51,9 +55,10 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task GetByIdAsync_supports_string_id()
     {
+        var ct = TestContext.Current.CancellationToken;
         // SQLite is dynamically typed, so a string id literal is accepted on a routinely-integer column.
         Item? item = await _db.GetByIdAsync<Item>(
-            "SELECT id, name, price FROM items WHERE name = @Id", id: "banana");
+            "SELECT id, name, price FROM items WHERE name = @Id", id: "banana", cancellationToken: ct);
 
         Assert.NotNull(item);
         Assert.Equal(0.5, item!.Price);
@@ -62,8 +67,9 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task GetByIdAsync_returns_null_when_no_match()
     {
+        var ct = TestContext.Current.CancellationToken;
         Item? item = await _db.GetByIdAsync<Item>(
-            "SELECT id, name, price FROM items WHERE id = @Id", id: 9999);
+            "SELECT id, name, price FROM items WHERE id = @Id", id: 9999, cancellationToken: ct);
 
         Assert.Null(item);
     }
@@ -71,9 +77,10 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task InsertAsync_returns_generated_id()
     {
+        var ct = TestContext.Current.CancellationToken;
         int newId = await _db.InsertAsync(
             "INSERT INTO items (name, price) VALUES (@Name, @Price) RETURNING id",
-            new { Name = "date", Price = 3.0 });
+            new { Name = "date", Price = 3.0 }, cancellationToken: ct);
 
         Assert.True(newId > 0);
     }
@@ -81,6 +88,7 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task InsertAllAsync_returns_total_rows_affected_across_parameter_sets()
     {
+        var ct = TestContext.Current.CancellationToken;
         var batch = new[]
         {
             new { Name = "elderberry", Price = 4.0 },
@@ -89,7 +97,7 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
         };
 
         int affected = await _db.InsertAllAsync(
-            "INSERT INTO items (name, price) VALUES (@Name, @Price)", batch);
+            "INSERT INTO items (name, price) VALUES (@Name, @Price)", batch, cancellationToken: ct);
 
         Assert.Equal(3, affected);
     }
@@ -97,9 +105,10 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task UpdateAsync_returns_affected_row_count()
     {
+        var ct = TestContext.Current.CancellationToken;
         int affected = await _db.UpdateAsync(
             "UPDATE items SET price = @Price WHERE name = @Name",
-            new { Price = 99.0, Name = "apple" });
+            new { Price = 99.0, Name = "apple" }, cancellationToken: ct);
 
         Assert.Equal(1, affected);
     }
@@ -107,6 +116,7 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task UpdateAllAsync_returns_total_rows_affected()
     {
+        var ct = TestContext.Current.CancellationToken;
         var bumps = new[]
         {
             new { Price = 100.0, Name = "apple" },
@@ -114,7 +124,7 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
         };
 
         int affected = await _db.UpdateAllAsync(
-            "UPDATE items SET price = @Price WHERE name = @Name", bumps);
+            "UPDATE items SET price = @Price WHERE name = @Name", bumps, cancellationToken: ct);
 
         Assert.Equal(2, affected);
     }
@@ -122,8 +132,9 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task ExecuteAsync_returns_scalar()
     {
+        var ct = TestContext.Current.CancellationToken;
         long? count = await _db.ExecuteAsync<object, long?>(
-            "SELECT COUNT(*) FROM items", parameters: null);
+            "SELECT COUNT(*) FROM items", parameters: null, cancellationToken: ct);
 
         Assert.True(count >= 3);
     }
@@ -131,8 +142,11 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     [Fact]
     public async Task QueryStreamAsync_yields_rows_lazily_and_completes()
     {
+        var ct = TestContext.Current.CancellationToken;
         var collected = new List<Item>();
-        await foreach (Item item in _db.QueryStreamAsync<Item>("SELECT id, name, price FROM items ORDER BY id"))
+        await foreach (Item item in _db.QueryStreamAsync<Item>(
+            "SELECT id, name, price FROM items ORDER BY id",
+            cancellationToken: ct))
         {
             collected.Add(item);
         }

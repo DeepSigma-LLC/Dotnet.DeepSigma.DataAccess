@@ -29,7 +29,7 @@ namespace DeepSigma.DataAccess.Postgres;
 /// <item><description><b>No generated identity values returned.</b> Rows are streamed in; the server-assigned
 /// <c>SERIAL</c> / <c>IDENTITY</c> values are not handed back. <c>COPY</c> into a staging table first and then
 /// <c>INSERT … SELECT … RETURNING id</c> if you need them.</description></item>
-/// <item><description><b>POCO → column mapping is by name.</b> Every public readable property on <typeparamref name="T"/>
+/// <item><description><b>POCO → column mapping is by name.</b> Every public readable property on the row type
 /// is mapped to a destination column with the same name (case-sensitive — Postgres folds unquoted identifiers
 /// to lowercase, so column names are emitted quoted). Use a DTO that mirrors the destination table if you need a different shape.</description></item>
 /// <item><description><b>Type inference.</b> Each value is passed to <c>NpgsqlBinaryImporter.WriteAsync(value)</c>

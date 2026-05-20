@@ -31,7 +31,7 @@ public class BlobStorageApi
     /// <summary>
     /// Uploads the file to the blob container. Creates the container if it does not exist.
     /// </summary>
-    public async Task UploadToBlob(string filePath, bool allowOverwrite = false, CancellationToken cancellationToken = default)
+    public async Task UploadToBlobAsync(string filePath, bool allowOverwrite = false, CancellationToken cancellationToken = default)
     {
         string file = Path.GetFileName(filePath);
         await _containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
@@ -43,7 +43,7 @@ public class BlobStorageApi
     /// <summary>
     /// Downloads the blob from the container to the specified file path.
     /// </summary>
-    public async Task DownloadFromBlob(string blobFileName, string downloadFilePath, CancellationToken cancellationToken = default)
+    public async Task DownloadFromBlobAsync(string blobFileName, string downloadFilePath, CancellationToken cancellationToken = default)
     {
         BlobClient blobClient = _containerClient.GetBlobClient(blobFileName);
         BlobDownloadInfo download = await blobClient.DownloadAsync(cancellationToken);
@@ -54,7 +54,7 @@ public class BlobStorageApi
     /// <summary>
     /// Deletes the blob from the container.
     /// </summary>
-    public async Task DeleteBlobFile(string blobFileName, CancellationToken cancellationToken = default)
+    public async Task DeleteBlobFileAsync(string blobFileName, CancellationToken cancellationToken = default)
     {
         BlobClient blobClient = _containerClient.GetBlobClient(blobFileName);
         await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
@@ -63,7 +63,7 @@ public class BlobStorageApi
     /// <summary>
     /// Lists the blobs in the container.
     /// </summary>
-    public async Task<List<string>> ListAllItemsBlobs(CancellationToken cancellationToken = default)
+    public async Task<List<string>> ListAllItemsBlobsAsync(CancellationToken cancellationToken = default)
     {
         List<string> blobs = new();
         await foreach (BlobItem blobItem in _containerClient.GetBlobsAsync(cancellationToken: cancellationToken))

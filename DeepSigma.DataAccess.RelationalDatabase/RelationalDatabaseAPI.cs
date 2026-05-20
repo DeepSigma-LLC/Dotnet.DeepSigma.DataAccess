@@ -128,7 +128,12 @@ public class RelationalDatabaseApi
     {
         _logger.LogDebug("QueryStreamAsync<T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        await foreach (T item in connection.QueryUnbufferedAsync<T>(sql, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
+        if (connection is not DbConnection dbConnection)
+        {
+            throw new InvalidOperationException(
+                $"QueryStreamAsync requires the connection factory to return a {nameof(DbConnection)}-derived type; got {connection.GetType().Name}.");
+        }
+        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
         {
             yield return item;
         }
@@ -141,7 +146,12 @@ public class RelationalDatabaseApi
     {
         _logger.LogDebug("QueryStreamAsync<TParam, T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        await foreach (T item in connection.QueryUnbufferedAsync<T>(sql, parameters, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
+        if (connection is not DbConnection dbConnection)
+        {
+            throw new InvalidOperationException(
+                $"QueryStreamAsync requires the connection factory to return a {nameof(DbConnection)}-derived type; got {connection.GetType().Name}.");
+        }
+        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, parameters, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
         {
             yield return item;
         }

@@ -44,10 +44,10 @@ Implements `IDatabaseSchemaService` by executing packaged SQL files against `sql
 
 | Method | Returns | Source query |
 |---|---|---|
-| `GetTables()` | `IEnumerable<TableName>` | `sqlite_master` filtered to `type = 'table'`, excluding `sqlite_%` system tables. |
-| `GetTableFields()` | `IEnumerable<TableField>` | `sqlite_master` joined to `pragma_table_info(name)` for each table. |
-| `GetConstraints()` | `IEnumerable<TableConstraint>` | Primary keys (from `pragma_table_info.pk`) plus user-declared `UNIQUE` constraints (from `pragma_index_list` where `origin = 'u'`). |
-| `GetForeignKeys()` | `IEnumerable<TableForeignKey>` | `sqlite_master` joined to `pragma_foreign_key_list(name)`. |
+| `GetTablesAsync()` | `IEnumerable<TableName>` | `sqlite_master` filtered to `type = 'table'`, excluding `sqlite_%` system tables. |
+| `GetTableFieldsAsync()` | `IEnumerable<TableField>` | `sqlite_master` joined to `pragma_table_info(name)` for each table. |
+| `GetConstraintsAsync()` | `IEnumerable<TableConstraint>` | Primary keys (from `pragma_table_info.pk`) plus user-declared `UNIQUE` constraints (from `pragma_index_list` where `origin = 'u'`). |
+| `GetForeignKeysAsync()` | `IEnumerable<TableForeignKey>` | `sqlite_master` joined to `pragma_foreign_key_list(name)`. |
 
 ## Dependency-injection registration
 
@@ -73,10 +73,10 @@ using DeepSigma.DataAccess.Sqlite;
 
 var schema = new SqliteSchemaService("Data Source=app.db");
 
-IEnumerable<TableName>       tables       = await schema.GetTables();
-IEnumerable<TableField>      fields       = await schema.GetTableFields();
-IEnumerable<TableConstraint> constraints  = await schema.GetConstraints();
-IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeys();
+IEnumerable<TableName>       tables       = await schema.GetTablesAsync();
+IEnumerable<TableField>      fields       = await schema.GetTableFieldsAsync();
+IEnumerable<TableConstraint> constraints  = await schema.GetConstraintsAsync();
+IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeysAsync();
 ```
 
 ## Quick start: ad-hoc queries
@@ -151,7 +151,7 @@ Optional arguments (all named): `name` (default `"deepsigma_sqlite"`), `failureS
 
 - **SQLite is dynamically typed.** The `DataType` in `TableField` is a *hint* declared in `CREATE TABLE`, not an enforced constraint. Rows can store values of any type regardless of the declared type.
 - **`CharacterMaximumLength` and `NumericPrecision` are always null.** SQLite has no equivalent concepts.
-- **`GetConstraints()`** returns `PRIMARY KEY` rows (from each column flagged in `pragma_table_info`) and user-declared `UNIQUE` rows. `CHECK` constraints are not surfaced — SQLite stores them only in the original `CREATE TABLE` text, and there is no queryable list. Filter by `ConstraintType` if you need only one kind.
+- **`GetConstraintsAsync()`** returns `PRIMARY KEY` rows (from each column flagged in `pragma_table_info`) and user-declared `UNIQUE` rows. `CHECK` constraints are not surfaced — SQLite stores them only in the original `CREATE TABLE` text, and there is no queryable list. Filter by `ConstraintType` if you need only one kind.
 - **Foreign keys are anonymous** in SQLite, so `ConstraintName` is always null. Also, foreign-key enforcement requires `PRAGMA foreign_keys = ON` at the **connection** level — it does *not* persist in the database file. The schema service still reports declared FKs regardless of whether enforcement is on.
 - **Connection strings.** `Data Source=:memory:` is per-connection — the most common cause of "my test data disappeared" is creating a fresh `SqliteConnection` and finding it empty. Use the `file:name?mode=memory&cache=shared` form when you need sharing.
 - **Threading.** `SqliteConnection` is not thread-safe — the connection factory pattern handles this naturally because each call gets its own connection.

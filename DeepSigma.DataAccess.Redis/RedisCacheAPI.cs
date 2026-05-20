@@ -35,7 +35,7 @@ public class RedisCacheApi
     /// <summary>
     /// Gets the cached value for the given key.
     /// </summary>
-    public async Task<T?> GetCacheData<T>(string key, CancellationToken cancellationToken = default)
+    public async Task<T?> GetCacheDataAsync<T>(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var value = await _database.StringGetAsync(key);
@@ -43,13 +43,15 @@ public class RedisCacheApi
         {
             return default;
         }
-        return JsonConvert.DeserializeObject<T>(value);
+        // value is non-null/non-empty here because of the IsNullOrEmpty guard above;
+        // the implicit RedisValue→string conversion is typed as nullable, so explicitly bang it for the compiler.
+        return JsonConvert.DeserializeObject<T>(value!);
     }
 
     /// <summary>
     /// Removes the cached value for the given key.
     /// </summary>
-    public async Task<object> RemoveCacheData(string key, CancellationToken cancellationToken = default)
+    public async Task<object> RemoveCacheDataAsync(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         bool valueExists = await _database.KeyExistsAsync(key);
@@ -63,7 +65,7 @@ public class RedisCacheApi
     /// <summary>
     /// Sets the cached value for the given key, with an expiration.
     /// </summary>
-    public async Task<bool> SetCacheData<T>(string key, T value, DateTimeOffset expirationTime, CancellationToken cancellationToken = default)
+    public async Task<bool> SetCacheDataAsync<T>(string key, T value, DateTimeOffset expirationTime, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         TimeSpan expiryTime = expirationTime.DateTime.Subtract(DateTime.Now);

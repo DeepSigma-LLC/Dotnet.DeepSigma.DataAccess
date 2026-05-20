@@ -24,10 +24,10 @@ Constructed with a Storage connection string and a container name. Each instance
 
 | Method | Behaviour |
 |---|---|
-| `UploadToBlob(filePath, allowOverwrite = false)` | Creates the container if missing, then uploads the local file as a blob named after the file's leaf name. |
-| `DownloadFromBlob(blobFileName, downloadFilePath)` | Downloads `blobFileName` from the container and writes it to `downloadFilePath`. |
-| `DeleteBlobFile(blobFileName)` | Deletes the named blob if it exists. |
-| `ListAllItemsBlobs()` | Returns the names of every blob in the container. |
+| `UploadToBlobAsync(filePath, allowOverwrite = false)` | Creates the container if missing, then uploads the local file as a blob named after the file's leaf name. |
+| `DownloadFromBlobAsync(blobFileName, downloadFilePath)` | Downloads `blobFileName` from the container and writes it to `downloadFilePath`. |
+| `DeleteBlobFileAsync(blobFileName)` | Deletes the named blob if it exists. |
+| `ListAllItemsBlobsAsync()` | Returns the names of every blob in the container. |
 
 ## Dependency-injection registration
 
@@ -53,16 +53,16 @@ var blobs = new BlobStorageApi(
     blobContainerName: "documents");
 
 // Upload (creates the container if needed)
-await blobs.UploadToBlob("./report.pdf", allowOverwrite: true);
+await blobs.UploadToBlobAsync("./report.pdf", allowOverwrite: true);
 
 // List
-List<string> names = await blobs.ListAllItemsBlobs();
+List<string> names = await blobs.ListAllItemsBlobsAsync();
 
 // Download
-await blobs.DownloadFromBlob("report.pdf", "./downloads/report.pdf");
+await blobs.DownloadFromBlobAsync("report.pdf", "./downloads/report.pdf");
 
 // Delete
-await blobs.DeleteBlobFile("report.pdf");
+await blobs.DeleteBlobFileAsync("report.pdf");
 ```
 
 ## Health checks
@@ -85,7 +85,7 @@ A missing container is reported as unhealthy (not just "the storage account is r
 - **Upload blob name.** The uploaded blob is named after `Path.GetFileName(filePath)` — directory structure is **not** preserved. If you need a virtual folder hierarchy (e.g. `2025/05/report.pdf`), pass the desired full key as the filename and arrange your source file accordingly, or extend the API.
 - **Connection lifetime.** `BlobStorageApi` holds a long-lived `BlobContainerClient` for the lifetime of the instance. The Azure SDK clients are thread-safe and designed to be reused.
 - **Cancellation.** All methods accept an optional `CancellationToken`. It is forwarded to the underlying Azure SDK calls.
-- **Listing is eager.** `ListAllItemsBlobs` materialises every blob name in memory. For large containers, prefer paging via the underlying `containerClient.GetBlobsAsync()` directly.
+- **Listing is eager.** `ListAllItemsBlobsAsync` materialises every blob name in memory. For large containers, prefer paging via the underlying `containerClient.GetBlobsAsync()` directly.
 
 ## License
 

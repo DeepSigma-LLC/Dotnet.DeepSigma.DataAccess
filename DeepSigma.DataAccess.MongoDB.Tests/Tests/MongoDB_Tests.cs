@@ -13,57 +13,63 @@ public class MongoDB_Tests
     [Fact]
     public async Task InsertAsync_Test()
     {
-        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests());
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests(), cancellationToken: ct);
         Assert.True(true);
 
-        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""));
+        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""), cancellationToken: ct);
     }
 
     [Fact]
     public async Task DeleteAsync_Test()
     {
-        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"));
-        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb");
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"), cancellationToken: ct);
+        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb", cancellationToken: ct);
         Assert.True(result);
     }
 
     [Fact]
     public async Task DeleteManyAsync_Test()
     {
-        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests());
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests(), cancellationToken: ct);
 
-        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""));
+        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""), cancellationToken: ct);
         Assert.True(result);
     }
 
     [Fact]
     public async Task CountAsync_Test()
     {
-        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests());
-        long count = await api.CountAsync<DataRequest>("TestDB", "Requests");
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync<DataRequest>("TestDB", "Requests", GetDataRequests(), cancellationToken: ct);
+        long count = await api.CountAsync<DataRequest>("TestDB", "Requests", cancellationToken: ct);
         Assert.True(count > 1);
 
-        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""));
+        bool result = await api.DeleteManyAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name != ""), cancellationToken: ct);
     }
 
     [Fact]
     public async Task FindAsync_Test()
     {
-        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"));
-        IEnumerable<DataRequest> results = await api.FindAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name == "Test1"));
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"), cancellationToken: ct);
+        IEnumerable<DataRequest> results = await api.FindAsync("TestDB", "Requests", Builders<DataRequest>.Filter.Where(x => x.Name == "Test1"), cancellationToken: ct);
         Assert.True(results.Count() > 0);
 
-        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb");
+        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb", cancellationToken: ct);
     }
 
     [Fact]
     public async Task GetByIdAsync_Test()
     {
-        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"));
-        DataRequest? request = await api.GetByIdAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb");
+        var ct = TestContext.Current.CancellationToken;
+        await api.InsertAsync("TestDB", "Requests", new DataRequest("Test1", "A test description", [1, 2], "68d0a9d8ad3512e0e907c0cb"), cancellationToken: ct);
+        DataRequest? request = await api.GetByIdAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb", cancellationToken: ct);
         Assert.NotNull(request);
 
-        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb");
+        bool result = await api.DeleteAsync<DataRequest>("TestDB", "Requests", "68d0a9d8ad3512e0e907c0cb", cancellationToken: ct);
     }
 
     private static List<DataRequest> GetDataRequests()

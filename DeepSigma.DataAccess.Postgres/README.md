@@ -35,10 +35,10 @@ Implements `IDatabaseSchemaService` by executing packaged SQL files against `inf
 
 | Method | Returns | Source query |
 |---|---|---|
-| `GetTables()` | `IEnumerable<TableName>` | `information_schema.tables` filtered to `BASE TABLE` in schema `public`. |
-| `GetTableFields()` | `IEnumerable<TableField>` | `information_schema.columns` for schema `public`. |
-| `GetConstraints()` | `IEnumerable<TableConstraint>` | `information_schema.table_constraints` joined to `key_column_usage`, excluding foreign keys. |
-| `GetForeignKeys()` | `IEnumerable<TableForeignKey>` | `information_schema.referential_constraints` joined to `key_column_usage` and `table_constraints`. |
+| `GetTablesAsync()` | `IEnumerable<TableName>` | `information_schema.tables` filtered to `BASE TABLE` in schema `public`. |
+| `GetTableFieldsAsync()` | `IEnumerable<TableField>` | `information_schema.columns` for schema `public`. |
+| `GetConstraintsAsync()` | `IEnumerable<TableConstraint>` | `information_schema.table_constraints` joined to `key_column_usage`, excluding foreign keys. |
+| `GetForeignKeysAsync()` | `IEnumerable<TableForeignKey>` | `information_schema.referential_constraints` joined to `key_column_usage` and `table_constraints`. |
 
 The four `.sql` files live under `SQL/` in the package and are copied to the consumer's output directory at build time, then read at runtime via `AppDomain.CurrentDomain.BaseDirectory`. Inspect or override them as needed.
 
@@ -59,10 +59,10 @@ using DeepSigma.DataAccess.Postgres;
 var schema = new PostgresSchemaService(
     "Host=localhost;Database=appdb;Username=postgres;Password=postgres");
 
-IEnumerable<TableName>       tables       = await schema.GetTables();
-IEnumerable<TableField>      fields       = await schema.GetTableFields();
-IEnumerable<TableConstraint> constraints  = await schema.GetConstraints();
-IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeys();
+IEnumerable<TableName>       tables       = await schema.GetTablesAsync();
+IEnumerable<TableField>      fields       = await schema.GetTableFieldsAsync();
+IEnumerable<TableConstraint> constraints  = await schema.GetConstraintsAsync();
+IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeysAsync();
 ```
 
 ## Dependency-injection registration
@@ -85,7 +85,7 @@ Consume them via constructor injection:
 ```csharp
 public class TableInspector(IDatabaseSchemaService schema, RelationalDatabaseApi db)
 {
-    public async Task<IEnumerable<TableName>> ListTables(CancellationToken ct) => await schema.GetTables(ct);
+    public async Task<IEnumerable<TableName>> ListTables(CancellationToken ct) => await schema.GetTablesAsync(ct);
 }
 ```
 
@@ -189,8 +189,8 @@ Optional arguments (all named): `name` (default `"deepsigma_postgres"`), `failur
 ## Notes
 
 - The packaged queries target schema `public`. To inspect a different schema, copy the SQL files out of the package and adjust the `WHERE table_schema = 'public'` clauses.
-- `GetTableFields()` includes `TableName` in the projection — group by `(TableSchema, TableName)` to reconstruct per-table column lists.
-- `GetConstraints()` uses a `LEFT JOIN` to `key_column_usage`, so `CHECK` constraints (which have no column-usage rows) are included with a null `ColumnName`. Filter by `ConstraintType` if you want only PK / UNIQUE rows.
+- `GetTableFieldsAsync()` includes `TableName` in the projection — group by `(TableSchema, TableName)` to reconstruct per-table column lists.
+- `GetConstraintsAsync()` uses a `LEFT JOIN` to `key_column_usage`, so `CHECK` constraints (which have no column-usage rows) are included with a null `ColumnName`. Filter by `ConstraintType` if you want only PK / UNIQUE rows.
 - Postgres folds unquoted identifiers to lowercase, so the packaged SQL uses quoted aliases (e.g. `AS "TableSchema"`) to match the PascalCase property names on the `Table*` models. Keep this in mind if you customise the SQL.
 - Npgsql pools connections by default — let your connection string control the pool size and lifetime.
 

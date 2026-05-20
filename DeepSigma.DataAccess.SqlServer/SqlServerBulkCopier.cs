@@ -32,7 +32,7 @@ namespace DeepSigma.DataAccess.SqlServer;
 /// <item><description><b>No triggers / constraints by default — depending on options.</b> Pass
 /// <see cref="SqlBulkCopyOptions.FireTriggers"/>, <see cref="SqlBulkCopyOptions.CheckConstraints"/>, etc.
 /// explicitly if you need them; default behaviour is to skip them for speed.</description></item>
-/// <item><description><b>POCO → column mapping is by name.</b> Every public readable property on <typeparamref name="T"/>
+/// <item><description><b>POCO → column mapping is by name.</b> Every public readable property on the row type
 /// is mapped to a destination column of the same name. No <c>[Column]</c> attribute support — use a DTO
 /// that mirrors the destination table if you need a different shape.</description></item>
 /// </list>

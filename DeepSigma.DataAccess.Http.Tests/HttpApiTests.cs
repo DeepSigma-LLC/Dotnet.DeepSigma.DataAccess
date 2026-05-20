@@ -18,7 +18,9 @@ public class HttpApiTests
         var handler = StubHttpMessageHandler.WithJsonBody("{\"city\":\"Seattle\",\"tempF\":55}");
         var http = new HttpApi(new HttpClient(handler));
 
-        string? body = await http.GetJsonResponseAsync("https://example.com/weather");
+        string? body = await http.GetJsonResponseAsync(
+            "https://example.com/weather",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("{\"city\":\"Seattle\",\"tempF\":55}", body);
         Assert.Single(handler.Requests);
@@ -31,7 +33,9 @@ public class HttpApiTests
         var http = new HttpApi(new HttpClient(handler));
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => http.GetJsonResponseAsync("https://example.com/weather"));
+            () => http.GetJsonResponseAsync(
+                "https://example.com/weather",
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -42,7 +46,10 @@ public class HttpApiTests
 
         // 1-second per-call timeout should fire well before the 5-second stub delay
         await Assert.ThrowsAsync<TaskCanceledException>(
-            () => http.GetJsonResponseAsync("https://example.com/slow", timeoutInSeconds: 1));
+            () => http.GetJsonResponseAsync(
+                "https://example.com/slow",
+                timeoutInSeconds: 1,
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -64,7 +71,9 @@ public class HttpApiTests
         var http = new HttpApi(new HttpClient(handler));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => http.GetCsvDataAsync("https://example.com/data.csv"));
+            () => http.GetCsvDataAsync(
+                "https://example.com/data.csv",
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -73,7 +82,9 @@ public class HttpApiTests
         var handler = StubHttpMessageHandler.WithCsvBody("date,price\n2026-01-01,100");
         var http = new HttpApi(new HttpClient(handler));
 
-        string? csv = await http.GetCsvDataAsync("https://example.com/data.csv");
+        string? csv = await http.GetCsvDataAsync(
+            "https://example.com/data.csv",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains("date,price", csv);
     }
@@ -84,7 +95,9 @@ public class HttpApiTests
         var handler = StubHttpMessageHandler.WithJsonBody("{\"city\":\"Seattle\",\"tempF\":55}");
         var http = new HttpApi(new HttpClient(handler));
 
-        WeatherDto? dto = await http.GetDataFromUrlAsync<WeatherDto>("https://example.com/weather");
+        WeatherDto? dto = await http.GetDataFromUrlAsync<WeatherDto>(
+            "https://example.com/weather",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(dto);
         Assert.Equal("Seattle", dto!.City);
@@ -100,7 +113,8 @@ public class HttpApiTests
 
         await http.GetDataFromUrlAsync<WeatherDto>(
             "https://example.com/weather",
-            apiResultLoggingMethod: body => observedBody = body);
+            apiResultLoggingMethod: body => observedBody = body,
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("{\"city\":\"Seattle\",\"tempF\":55}", observedBody);
     }

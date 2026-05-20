@@ -35,10 +35,10 @@ Implements `IDatabaseSchemaService` by executing packaged SQL files against `INF
 
 | Method | Returns | Source query |
 |---|---|---|
-| `GetTables()` | `IEnumerable<TableName>` | `INFORMATION_SCHEMA.TABLES` filtered to `BASE TABLE` in schema `dbo`. |
-| `GetTableFields()` | `IEnumerable<TableField>` | `INFORMATION_SCHEMA.COLUMNS` for schema `dbo`. |
-| `GetConstraints()` | `IEnumerable<TableConstraint>` | `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` joined to `KEY_COLUMN_USAGE`, excluding foreign keys. |
-| `GetForeignKeys()` | `IEnumerable<TableForeignKey>` | `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS` joined to `KEY_COLUMN_USAGE` and `TABLE_CONSTRAINTS`. |
+| `GetTablesAsync()` | `IEnumerable<TableName>` | `INFORMATION_SCHEMA.TABLES` filtered to `BASE TABLE` in schema `dbo`. |
+| `GetTableFieldsAsync()` | `IEnumerable<TableField>` | `INFORMATION_SCHEMA.COLUMNS` for schema `dbo`. |
+| `GetConstraintsAsync()` | `IEnumerable<TableConstraint>` | `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` joined to `KEY_COLUMN_USAGE`, excluding foreign keys. |
+| `GetForeignKeysAsync()` | `IEnumerable<TableForeignKey>` | `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS` joined to `KEY_COLUMN_USAGE` and `TABLE_CONSTRAINTS`. |
 
 The four `.sql` files live under `SQL/` in the package and are copied to the consumer's output directory at build time, then read at runtime via `AppDomain.CurrentDomain.BaseDirectory`. This makes the queries easy to inspect or replace without recompiling.
 
@@ -59,10 +59,10 @@ using DeepSigma.DataAccess.SqlServer;
 var schema = new SqlServerSchemaService(
     "Server=localhost;Database=AppDb;Integrated Security=True;TrustServerCertificate=True;");
 
-IEnumerable<TableName>       tables       = await schema.GetTables();
-IEnumerable<TableField>      fields       = await schema.GetTableFields();
-IEnumerable<TableConstraint> constraints  = await schema.GetConstraints();
-IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeys();
+IEnumerable<TableName>       tables       = await schema.GetTablesAsync();
+IEnumerable<TableField>      fields       = await schema.GetTableFieldsAsync();
+IEnumerable<TableConstraint> constraints  = await schema.GetConstraintsAsync();
+IEnumerable<TableForeignKey> foreignKeys  = await schema.GetForeignKeysAsync();
 ```
 
 ## Dependency-injection registration
@@ -85,7 +85,7 @@ Consume them via constructor injection:
 ```csharp
 public class TableInspector(IDatabaseSchemaService schema, RelationalDatabaseApi db)
 {
-    public async Task<IEnumerable<TableName>> ListTables(CancellationToken ct) => await schema.GetTables(ct);
+    public async Task<IEnumerable<TableName>> ListTables(CancellationToken ct) => await schema.GetTablesAsync(ct);
 }
 ```
 
@@ -190,8 +190,8 @@ Optional arguments (all named): `name` (default `"deepsigma_sqlserver"`), `failu
 ## Notes
 
 - The packaged SQL queries default to schema `dbo`. If your tables live in a different schema, copy the SQL files out of the package and adjust the `WHERE TABLE_SCHEMA = 'dbo'` clauses to suit.
-- `GetTableFields()` includes `TableName` in the projection — group by `(TableSchema, TableName)` to reconstruct per-table column lists.
-- `GetConstraints()` uses a `LEFT JOIN` to `KEY_COLUMN_USAGE`, so `CHECK` constraints (which have no column-usage rows) are included with a null `ColumnName`. Filter by `ConstraintType` if you want only PK / UNIQUE rows.
+- `GetTableFieldsAsync()` includes `TableName` in the projection — group by `(TableSchema, TableName)` to reconstruct per-table column lists.
+- `GetConstraintsAsync()` uses a `LEFT JOIN` to `KEY_COLUMN_USAGE`, so `CHECK` constraints (which have no column-usage rows) are included with a null `ColumnName`. Filter by `ConstraintType` if you want only PK / UNIQUE rows.
 - Connections honour whatever pooling/timeout/encryption settings you set in the connection string.
 
 ## License

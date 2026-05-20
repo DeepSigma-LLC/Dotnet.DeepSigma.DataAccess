@@ -45,7 +45,7 @@ IDatabaseSchemaService schema = useSqlServer
     ? new SqlServerSchemaService(connectionString)
     : new PostgresSchemaService(connectionString);
 
-IEnumerable<TableName> tables = await schema.GetTables();
+IEnumerable<TableName> tables = await schema.GetTablesAsync();
 ```
 
 Putting the contracts in a dependency-free package means the providers (and their consumers) can share types without dragging in Dapper, SqlClient, Npgsql, or any other runtime concern.
@@ -72,10 +72,10 @@ using DeepSigma.DataAccess.Abstraction.Models;
 
 public sealed class MyDbSchemaService : IDatabaseSchemaService
 {
-    public Task<IEnumerable<TableName>>       GetTables()        => /* ... */;
-    public Task<IEnumerable<TableField>>      GetTableFields()   => /* ... */;
-    public Task<IEnumerable<TableConstraint>> GetConstraints()   => /* ... */;
-    public Task<IEnumerable<TableForeignKey>> GetForeignKeys()   => /* ... */;
+    public Task<IEnumerable<TableName>>       GetTablesAsync()        => /* ... */;
+    public Task<IEnumerable<TableField>>      GetTableFieldsAsync()   => /* ... */;
+    public Task<IEnumerable<TableConstraint>> GetConstraintsAsync()   => /* ... */;
+    public Task<IEnumerable<TableForeignKey>> GetForeignKeysAsync()   => /* ... */;
 }
 ```
 

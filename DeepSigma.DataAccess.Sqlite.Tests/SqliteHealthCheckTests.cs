@@ -22,7 +22,7 @@ public class SqliteHealthCheckTests : IClassFixture<SqliteSharedMemoryFixture>
 
         using var provider = services.BuildServiceProvider();
         var healthService = provider.GetRequiredService<HealthCheckService>();
-        var report = await healthService.CheckHealthAsync();
+        var report = await healthService.CheckHealthAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HealthStatus.Healthy, report.Status);
         Assert.Contains(report.Entries, e => e.Key == "deepsigma_sqlite" && e.Value.Status == HealthStatus.Healthy);
@@ -39,7 +39,7 @@ public class SqliteHealthCheckTests : IClassFixture<SqliteSharedMemoryFixture>
 
         using var provider = services.BuildServiceProvider();
         var healthService = provider.GetRequiredService<HealthCheckService>();
-        var report = await healthService.CheckHealthAsync();
+        var report = await healthService.CheckHealthAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HealthStatus.Unhealthy, report.Status);
     }
