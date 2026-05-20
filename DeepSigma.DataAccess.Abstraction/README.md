@@ -27,11 +27,13 @@ None. This package is BCL-only.
 
 All models live under `DeepSigma.DataAccess.Abstraction.Models`.
 
+All models are immutable `record`s with `init`-only properties.
+
 | Type | Description |
 |---|---|
 | `TableName` | A table's schema + name. |
-| `TableField` | A column: name, data type, length, precision, nullability, default flag. |
-| `TableConstraint` | A non-foreign-key constraint: name, table schema, table name, column. |
+| `TableField` | A column: table schema/name, column name, data type, length, precision, nullability, and the default-value expression (`ColumnDefault: string?`). Convenience computed `HasDefault: bool`. |
+| `TableConstraint` | A non-foreign-key constraint (primary key / unique / check): name, **constraint type**, table schema/name, column. |
 | `TableForeignKey` | A foreign key: constraint name, foreign column, referenced (primary) table schema/name/column. |
 
 ## Why this package exists
@@ -77,7 +79,7 @@ public sealed class MyDbSchemaService : IDatabaseSchemaService
 }
 ```
 
-You can then plug your factory into `RelationalDatabaseAPI` from `DeepSigma.DataAccess.RelationalDatabase`.
+You can then plug your factory into `RelationalDatabaseApi` from `DeepSigma.DataAccess.RelationalDatabase`.
 
 ## Versioning
 

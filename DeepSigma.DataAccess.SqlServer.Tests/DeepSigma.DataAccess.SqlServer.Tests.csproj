@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DeepSigma.DataAccess.Abstraction\DeepSigma.DataAccess.Abstraction.csproj" />
+    <ProjectReference Include="..\DeepSigma.DataAccess.RelationalDatabase\DeepSigma.DataAccess.RelationalDatabase.csproj" />
     <ProjectReference Include="..\DeepSigma.DataAccess.SqlServer\DeepSigma.DataAccess.SqlServer.csproj" />
   </ItemGroup>
 

@@ -1,0 +1,135 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using DeepSigma.DataAccess.CsvUtilities.Reading;
+using DeepSigma.DataAccess.CsvUtilities.Results;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace DeepSigma.DataAccess.Http;
+
+/// <summary>
+/// Instance API for interacting with web APIs: fetching JSON and CSV payloads,
+/// deserializing JSON responses, and surfacing rate-limit / error payloads as exceptions.
+/// </summary>
+/// <remarks>
+/// Takes an <see cref="HttpClient"/> via constructor injection. Register with
+/// <c>services.AddDeepSigmaHttp()</c> to get an <see cref="IHttpClientFactory"/>-managed
+/// client wired up for you.
+/// Per-call timeouts are enforced via a linked <see cref="CancellationTokenSource"/>,
+/// so the injected <see cref="HttpClient"/>'s own <c>Timeout</c> property is ignored.
+/// </remarks>
+public class HttpApi
+{
+    private readonly HttpClient _http;
+    private readonly ILogger<HttpApi> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="HttpApi"/> with the supplied <see cref="HttpClient"/>.
+    /// </summary>
+    public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null)
+    {
+        _http = httpClient;
+        _logger = logger ?? NullLogger<HttpApi>.Instance;
+    }
+
+    /// <summary>
+    /// Fetches JSON data from the URL and deserializes it into <typeparamref name="T"/>.
+    /// </summary>
+    public async Task<T?> GetDataFromUrlAsync<T>(string url, int timeoutInSeconds = 15, Action<string?>? apiResultLoggingMethod = null, CancellationToken cancellationToken = default)
+    {
+        string? json = await GetJsonResponseAsync(url, timeoutInSeconds, cancellationToken);
+
+        apiResultLoggingMethod?.Invoke(json);
+
+        if (string.IsNullOrWhiteSpace(json)) { return default; }
+        return LoadFromJson<T>(json);
+    }
+
+    /// <summary>
+    /// Fetches CSV data from the URL and deserializes it into a list of <typeparamref name="T"/>.
+    /// </summary>
+    public async Task<List<T>> GetDataFromCsvAsync<T>(string url, int timeoutInSeconds = 15, Action<string?>? apiResultLoggingMethod = null, CancellationToken cancellationToken = default) where T : class
+    {
+        string? csv = await GetCsvDataAsync(url, timeoutInSeconds, cancellationToken);
+
+        apiResultLoggingMethod?.Invoke(csv);
+
+        if (string.IsNullOrWhiteSpace(csv)) { return []; }
+        return LoadFromCsv<T>(csv) ?? [];
+    }
+
+    /// <summary>
+    /// Fetches raw JSON from the URL as a string.
+    /// </summary>
+    public async Task<string?> GetJsonResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("HTTP GET (JSON) {Url}, timeout {Timeout}s", urlEndpoint, timeoutInSeconds);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
+
+        using var response = await _http.GetAsync(urlEndpoint, cts.Token);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStringAsync(cts.Token);
+    }
+
+    /// <summary>
+    /// Fetches CSV data from the URL as a string, validating the Content-Type.
+    /// </summary>
+    public async Task<string?> GetCsvDataAsync(string urlEndpoint, int timeoutSeconds = 15, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("HTTP GET (CSV) {Url}, timeout {Timeout}s", urlEndpoint, timeoutSeconds);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        using var resp = await _http.GetAsync(urlEndpoint, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        resp.EnsureSuccessStatusCode();
+
+        var text = await resp.Content.ReadAsStringAsync(cts.Token);
+
+        if (!resp.Content.Headers.ContentType?.MediaType?.Contains("csv", StringComparison.OrdinalIgnoreCase) ?? true)
+        {
+            throw new InvalidOperationException($"Non-CSV response: {text}");
+        }
+        return text;
+    }
+
+    /// <summary>
+    /// Deserializes a JSON string into <typeparamref name="T"/>, surfacing API rate-limit / error payloads as exceptions.
+    /// Pure helper — does not require an <see cref="HttpClient"/>.
+    /// </summary>
+    public static T? LoadFromJson<T>(string jsonText)
+    {
+        if (string.IsNullOrWhiteSpace(jsonText)) { return default; }
+
+        JsonSerializerOptions opts = new()
+        {
+            NumberHandling = JsonNumberHandling.AllowReadingFromString,
+            PropertyNameCaseInsensitive = true,
+        };
+
+        using var doc = JsonDocument.Parse(jsonText);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("Note", out var note))
+        {
+            throw new InvalidOperationException($"API note: {note.GetString()}");
+        }
+
+        if (root.TryGetProperty("Error Message", out var err))
+        {
+            throw new InvalidOperationException($"API error: {err.GetString()}");
+        }
+
+        return JsonSerializer.Deserialize<T>(jsonText, opts);
+    }
+
+    /// <summary>
+    /// Parses CSV text into a list of <typeparamref name="T"/>. Pure helper — does not require an <see cref="HttpClient"/>.
+    /// </summary>
+    public static List<T>? LoadFromCsv<T>(string csvText) where T : class
+    {
+        CsvImportResult<T> results = CsvReader.ReadFromStringSafe<T>(csvText);
+        return results.IsSuccess ? results.Records : null;
+    }
+}

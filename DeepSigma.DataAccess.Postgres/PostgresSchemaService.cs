@@ -1,6 +1,8 @@
 using DeepSigma.DataAccess.Abstraction;
 using DeepSigma.DataAccess.Abstraction.Models;
 using DeepSigma.DataAccess.RelationalDatabase;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DeepSigma.DataAccess.Postgres;
 
@@ -10,51 +12,57 @@ namespace DeepSigma.DataAccess.Postgres;
 /// </summary>
 public class PostgresSchemaService : IDatabaseSchemaService
 {
-    private readonly RelationalDatabaseAPI _api;
+    private readonly RelationalDatabaseApi _api;
     private readonly string _sqlDirectory;
+    private readonly ILogger<PostgresSchemaService> _logger;
 
     /// <summary>
     /// Initializes a new instance using a connection string.
     /// </summary>
-    public PostgresSchemaService(string connectionString)
-        : this(new PostgresConnectionFactory(connectionString))
+    public PostgresSchemaService(string connectionString, ILogger<PostgresSchemaService>? logger = null)
+        : this(new PostgresConnectionFactory(connectionString), logger)
     {
     }
 
     /// <summary>
     /// Initializes a new instance using a connection factory.
     /// </summary>
-    public PostgresSchemaService(IDbConnectionFactory connectionFactory)
+    public PostgresSchemaService(IDbConnectionFactory connectionFactory, ILogger<PostgresSchemaService>? logger = null)
     {
-        _api = new RelationalDatabaseAPI(connectionFactory);
+        _api = new RelationalDatabaseApi(connectionFactory);
         _sqlDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SQL");
+        _logger = logger ?? NullLogger<PostgresSchemaService>.Instance;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableName>> GetTables()
+    public async Task<IEnumerable<TableName>> GetTables(CancellationToken cancellationToken = default)
     {
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_TableNames.sql"));
-        return await _api.GetAllAsync<TableName>(sql);
+        _logger.LogDebug("PostgresSchemaService: executing schema query");
+        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_TableNames.sql"), cancellationToken);
+        return await _api.GetAllAsync<TableName>(sql, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableField>> GetTableFields()
+    public async Task<IEnumerable<TableField>> GetTableFields(CancellationToken cancellationToken = default)
     {
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_TableAndFieldInfo.sql"));
-        return await _api.GetAllAsync<TableField>(sql);
+        _logger.LogDebug("PostgresSchemaService: executing schema query");
+        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_TableAndFieldInfo.sql"), cancellationToken);
+        return await _api.GetAllAsync<TableField>(sql, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableConstraint>> GetConstraints()
+    public async Task<IEnumerable<TableConstraint>> GetConstraints(CancellationToken cancellationToken = default)
     {
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_Constraints.sql"));
-        return await _api.GetAllAsync<TableConstraint>(sql);
+        _logger.LogDebug("PostgresSchemaService: executing schema query");
+        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_Constraints.sql"), cancellationToken);
+        return await _api.GetAllAsync<TableConstraint>(sql, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TableForeignKey>> GetForeignKeys()
+    public async Task<IEnumerable<TableForeignKey>> GetForeignKeys(CancellationToken cancellationToken = default)
     {
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_ForeignKeyConstraints.sql"));
-        return await _api.GetAllAsync<TableForeignKey>(sql);
+        _logger.LogDebug("PostgresSchemaService: executing schema query");
+        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Postgres_ForeignKeyConstraints.sql"), cancellationToken);
+        return await _api.GetAllAsync<TableForeignKey>(sql, cancellationToken: cancellationToken);
     }
 }

@@ -5,9 +5,10 @@ using Xunit;
 
 namespace DeepSigma.DataAccess.MongoDB.Tests.Tests;
 
+[Trait("Category", "Integration")]
 public class MongoDB_Tests
 {
-    private static MongoDBAPI api = new("mongodb://localhost:27017/");
+    private static MongoDbApi api = new("mongodb://localhost:27017/");
 
     [Fact]
     public async Task InsertAsync_Test()

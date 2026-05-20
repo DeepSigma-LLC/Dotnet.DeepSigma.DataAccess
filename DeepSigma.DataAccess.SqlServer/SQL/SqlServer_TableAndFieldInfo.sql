@@ -1,18 +1,14 @@
 
---Gets tables and column info
+--Gets tables and column info, including the default-value expression where present.
 SELECT
-	TABLE_SCHEMA TableSchema,
-	TABLE_NAME TableName,
-	COLUMN_NAME ColumnName,
-	DATA_TYPE DataType,
-	CHARACTER_MAXIMUM_LENGTH CharacterMaximumLength,
-	NUMERIC_PRECISION NumericPrecision,
-	IS_NULLABLE IsNullable,
-	Case
-		When COLUMN_DEFAULT is null Then 0
-		When len(COLUMN_DEFAULT) > 0 Then 1
-		Else 0
-	End ColumnDefault
+	TABLE_SCHEMA              AS TableSchema,
+	TABLE_NAME                AS TableName,
+	COLUMN_NAME               AS ColumnName,
+	DATA_TYPE                 AS DataType,
+	CHARACTER_MAXIMUM_LENGTH  AS CharacterMaximumLength,
+	NUMERIC_PRECISION         AS NumericPrecision,
+	IS_NULLABLE               AS IsNullable,
+	COLUMN_DEFAULT            AS ColumnDefault
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = 'dbo'
-Order by TABLE_NAME
+ORDER BY TABLE_NAME, ORDINAL_POSITION

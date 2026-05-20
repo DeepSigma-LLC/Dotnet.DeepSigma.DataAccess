@@ -1,7 +1,10 @@
 using System.Linq.Expressions;
 using System.Net;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using DeepSigma.Core.Utilities;
+using DeepSigma.DataAccess.Cosmos.Exceptions;
 
 namespace DeepSigma.DataAccess.Cosmos;
 
@@ -9,161 +12,183 @@ namespace DeepSigma.DataAccess.Cosmos;
 /// Provides methods to interact with Azure Cosmos DB, including creating databases and containers,
 /// inserting, querying, updating, and deleting items.
 /// </summary>
-public class CosmosDBAPI
+/// <remarks>
+/// Holds a single long-lived <see cref="CosmosClient"/> for the lifetime of the instance, per Microsoft's
+/// guidance. Dispose this instance when you are done with it (or register it as a singleton in your DI container).
+/// </remarks>
+public class CosmosDbApi : IDisposable
 {
-    private readonly string EndpointUri;
-    private readonly string PrimaryKey;
-    private readonly string AppName;
+    private readonly CosmosClient _client;
+    private readonly ILogger<CosmosDbApi> _logger;
+    private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="CosmosDBAPI"/>.
+    /// Initializes a new instance of <see cref="CosmosDbApi"/> with a long-lived <see cref="CosmosClient"/>.
     /// </summary>
-    public CosmosDBAPI(string end_point_uri, string api_key, string app_name)
+    public CosmosDbApi(string endpointUri, string apiKey, string appName, ILogger<CosmosDbApi>? logger = null)
     {
-        EndpointUri = end_point_uri;
-        PrimaryKey = api_key;
-        AppName = app_name;
-    }
-
-    private CosmosClient InstatiateCosmosClient()
-    {
-        return new CosmosClient(EndpointUri, PrimaryKey, new CosmosClientOptions() { ApplicationName = AppName });
+        _client = new CosmosClient(endpointUri, apiKey, new CosmosClientOptions { ApplicationName = appName });
+        _logger = logger ?? NullLogger<CosmosDbApi>.Instance;
     }
 
     /// <summary>
     /// Creates a database at the configured Cosmos instance.
     /// </summary>
-    public async Task CreateDatabaseAsync(string databaseIdName)
+    public async Task CreateDatabaseAsync(string databaseId, CancellationToken cancellationToken = default)
     {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
-        {
-            await cosmosClient.CreateDatabaseIfNotExistsAsync(databaseIdName);
-        }
+        await _client.CreateDatabaseIfNotExistsAsync(databaseId, cancellationToken: cancellationToken);
     }
 
     /// <summary>
     /// Creates the container if it does not exist.
     /// </summary>
-    public async Task CreateContainerAsync(string databaseId, string containerIdName, string PartitionKeyPath, int? throughput = null)
+    public async Task CreateContainerAsync(string databaseId, string containerId, string partitionKeyPath, int? throughput = null, CancellationToken cancellationToken = default)
     {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
-        {
-            Microsoft.Azure.Cosmos.Database db = cosmosClient.GetDatabase(databaseId);
-            await db.CreateContainerIfNotExistsAsync(containerIdName, "/" + PartitionKeyPath, throughput);
-        }
+        Microsoft.Azure.Cosmos.Database db = _client.GetDatabase(databaseId);
+        await db.CreateContainerIfNotExistsAsync(containerId, "/" + partitionKeyPath, throughput, cancellationToken: cancellationToken);
     }
 
     /// <summary>
-    /// Scales the throughput (RU/s) of an existing container.
+    /// Scales the throughput (RU/s) of an existing manual-throughput container.
     /// </summary>
-    public async Task ScaleContainerAsync(string databaseId, string containerId, int throughputIncrease)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the container is configured for autoscale (manual throughput cannot be read/replaced).
+    /// </exception>
+    public async Task ScaleContainerAsync(string databaseId, string containerId, int throughputIncrease, CancellationToken cancellationToken = default)
     {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
+        Container container = _client.GetContainer(databaseId, containerId);
+        int? currentThroughput = await container.ReadThroughputAsync(cancellationToken);
+        if (!currentThroughput.HasValue)
         {
-            Container container = cosmosClient.GetContainer(databaseId, containerId);
-            int? currentThroughput = await container.ReadThroughputAsync();
-            if (currentThroughput.HasValue)
-            {
-                int newThroughput = currentThroughput.Value + throughputIncrease;
-                await container.ReplaceThroughputAsync(newThroughput);
-            }
+            throw new InvalidOperationException(
+                $"Container '{containerId}' in database '{databaseId}' does not expose manual throughput " +
+                "(likely configured for autoscale). Use the autoscale-specific APIs instead.");
         }
+        int newThroughput = currentThroughput.Value + throughputIncrease;
+        await container.ReplaceThroughputAsync(newThroughput, cancellationToken: cancellationToken);
     }
 
     /// <summary>
-    /// Adds an item to the container.
+    /// Inserts an item into the container. Single round-trip; race-free.
     /// </summary>
-    public async Task<T> InsertAsync<T>(string databaseId, string containerId, T item, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty)
+    /// <exception cref="CosmosDuplicateItemException">Thrown if an item with the same id and partition key already exists.</exception>
+    public async Task<T> InsertAsync<T>(string databaseId, string containerId, T item, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
     {
-        string? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(item, partitionKeyProperty);
-        PartitionKey partitionKey = new PartitionKey(partitionKeyValue);
-        string? idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(item, idProperty);
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
+        object? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, object>(item, partitionKeyProperty);
+        PartitionKey partitionKey = ToPartitionKey(partitionKeyValue);
+        string? idValue = ObjectUtilities.GetPropertyValue<T, string>(item, idProperty);
+        Container container = _client.GetContainer(databaseId, containerId);
+        try
         {
-            Container container = cosmosClient.GetContainer(databaseId, containerId);
-            try
-            {
-                ItemResponse<T> readResponse = await container.ReadItemAsync<T>(idPropertyValue, partitionKey);
-                throw new Exception("A duplicate record attempted to be inserted.");
-            }
-            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                ItemResponse<T> createResponse = await container.CreateItemAsync(item, partitionKey);
-                return createResponse.Resource;
-            }
+            ItemResponse<T> createResponse = await container.CreateItemAsync(item, partitionKey, cancellationToken: cancellationToken);
+            return createResponse.Resource;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+        {
+            throw new CosmosDuplicateItemException(containerId, idValue, ex);
         }
     }
 
     /// <summary>
     /// Runs a query (Azure Cosmos DB SQL syntax) against the container.
     /// </summary>
-    public async Task<List<T>> QueryItemsAsync<T>(string databaseId, string containerId, string sqlQueryText)
+    public async Task<List<T>> QueryItemsAsync<T>(string databaseId, string containerId, string sqlQueryText, CancellationToken cancellationToken = default)
     {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
-        {
-            Container container = cosmosClient.GetContainer(databaseId, containerId);
-            QueryDefinition queryDefinition = new(sqlQueryText);
-            FeedIterator<T> queryResultSetIterator = container.GetItemQueryIterator<T>(queryDefinition);
-            List<T> results = [];
+        Container container = _client.GetContainer(databaseId, containerId);
+        QueryDefinition queryDefinition = new(sqlQueryText);
+        FeedIterator<T> queryResultSetIterator = container.GetItemQueryIterator<T>(queryDefinition);
+        List<T> results = [];
 
-            while (queryResultSetIterator.HasMoreResults)
+        while (queryResultSetIterator.HasMoreResults)
+        {
+            FeedResponse<T> currentResultSet = await queryResultSetIterator.ReadNextAsync(cancellationToken);
+            foreach (T result in currentResultSet)
             {
-                FeedResponse<T> currentResultSet = await queryResultSetIterator.ReadNextAsync();
-                foreach (T result in currentResultSet)
-                {
-                    results.Add(result);
-                }
+                results.Add(result);
             }
-            return results;
         }
+        return results;
     }
 
     /// <summary>
-    /// Updates an item in the container.
+    /// Replaces an item in the container. Single round-trip; race-free.
     /// </summary>
-    public async Task<T> UpdateItemAsync<T>(string databaseId, string containerId, T newItem, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty)
+    /// <exception cref="CosmosItemNotFoundException">Thrown if no item with the given id and partition key exists.</exception>
+    public async Task<T> UpdateItemAsync<T>(string databaseId, string containerId, T newItem, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
     {
-        string? idPropertyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, idProperty);
-        string? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, partitionKeyProperty);
-        PartitionKey partitionKey = new PartitionKey(partitionKeyValue);
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
+        string? idValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, idProperty);
+        object? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, object>(newItem, partitionKeyProperty);
+        PartitionKey partitionKey = ToPartitionKey(partitionKeyValue);
+        Container container = _client.GetContainer(databaseId, containerId);
+        try
         {
-            Container container = cosmosClient.GetContainer(databaseId, containerId);
-            try
-            {
-                ItemResponse<T> dataResponse = await container.ReadItemAsync<T>(idPropertyValue, partitionKey);
-            }
-            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                throw new Exception("No record exists for update.");
-            }
-            ItemResponse<T> updateResponse = await container.ReplaceItemAsync(newItem, idPropertyValue, partitionKey);
+            ItemResponse<T> updateResponse = await container.ReplaceItemAsync(newItem, idValue, partitionKey, cancellationToken: cancellationToken);
             return updateResponse.Resource;
         }
-    }
-
-    /// <summary>
-    /// Deletes an item from the container.
-    /// </summary>
-    public async Task DeleteItemAsync<T>(string databaseId, string containerId, string id, Func<T, PropertyInformation> partitionKeyProperty)
-    {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            PartitionKey partitionKey = new PartitionKey(partitionKeyProperty.GetType().Name);
-            Container container = cosmosClient.GetContainer(databaseId, containerId);
-            ItemResponse<T> deleteResponse = await container.DeleteItemAsync<T>(id, partitionKey);
+            throw new CosmosItemNotFoundException(containerId, idValue, ex);
         }
     }
 
     /// <summary>
-    /// Deletes the database and disposes of the Cosmos Client instance.
+    /// Deletes an item from the container by id and partition key value.
     /// </summary>
-    public async Task DeleteDatabaseAndCleanupAsync(string databaseId)
+    /// <param name="databaseId">The database identifier.</param>
+    /// <param name="containerId">The container identifier.</param>
+    /// <param name="id">The document id.</param>
+    /// <param name="partitionKeyValue">The partition key value. Supports <c>string</c>, <c>double</c>, <c>bool</c>, or <c>null</c>.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <exception cref="CosmosItemNotFoundException">Thrown if no item with the given id and partition key exists.</exception>
+    public async Task DeleteItemAsync<T>(string databaseId, string containerId, string id, object? partitionKeyValue, CancellationToken cancellationToken = default)
     {
-        using (CosmosClient cosmosClient = InstatiateCosmosClient())
+        PartitionKey partitionKey = ToPartitionKey(partitionKeyValue);
+        Container container = _client.GetContainer(databaseId, containerId);
+        try
         {
-            Microsoft.Azure.Cosmos.Database db = cosmosClient.GetDatabase(databaseId);
-            DatabaseResponse databaseResourceResponse = await db.DeleteAsync();
+            await container.DeleteItemAsync<T>(id, partitionKey, cancellationToken: cancellationToken);
         }
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new CosmosItemNotFoundException(containerId, id, ex);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the entire database.
+    /// </summary>
+    public async Task DeleteDatabaseAndCleanupAsync(string databaseId, CancellationToken cancellationToken = default)
+    {
+        Microsoft.Azure.Cosmos.Database db = _client.GetDatabase(databaseId);
+        await db.DeleteAsync(cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="PartitionKey"/> from a value, supporting all native Cosmos partition-key types.
+    /// </summary>
+    private static PartitionKey ToPartitionKey(object? value) => value switch
+    {
+        null => PartitionKey.None,
+        string s => new PartitionKey(s),
+        bool b => new PartitionKey(b),
+        double d => new PartitionKey(d),
+        float f => new PartitionKey(f),
+        int i => new PartitionKey(i),
+        long l => new PartitionKey(l),
+        decimal dec => new PartitionKey((double)dec),
+        _ => throw new ArgumentException(
+            $"Partition key type '{value.GetType().Name}' is not supported. Cosmos supports string, bool, and numeric partition keys.",
+            nameof(value)),
+    };
+
+    /// <summary>
+    /// Disposes the underlying <see cref="CosmosClient"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _client.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }

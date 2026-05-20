@@ -25,6 +25,22 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.MongoD
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.SqlServer.Tests", "DeepSigma.DataAccess.SqlServer.Tests\DeepSigma.DataAccess.SqlServer.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E11}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Sqlite", "DeepSigma.DataAccess.Sqlite\DeepSigma.DataAccess.Sqlite.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E12}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Abstraction.Tests", "DeepSigma.DataAccess.Abstraction.Tests\DeepSigma.DataAccess.Abstraction.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E13}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.RelationalDatabase.Tests", "DeepSigma.DataAccess.RelationalDatabase.Tests\DeepSigma.DataAccess.RelationalDatabase.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E14}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Sqlite.Tests", "DeepSigma.DataAccess.Sqlite.Tests\DeepSigma.DataAccess.Sqlite.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E15}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Http.Tests", "DeepSigma.DataAccess.Http.Tests\DeepSigma.DataAccess.Http.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E16}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Postgres.Tests", "DeepSigma.DataAccess.Postgres.Tests\DeepSigma.DataAccess.Postgres.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E17}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Cosmos.Tests", "DeepSigma.DataAccess.Cosmos.Tests\DeepSigma.DataAccess.Cosmos.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E18}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.AzureBlobStorage.Tests", "DeepSigma.DataAccess.AzureBlobStorage.Tests\DeepSigma.DataAccess.AzureBlobStorage.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E19}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +91,38 @@ Global
 		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E11}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E11}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E13}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E13}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E13}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E13}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E15}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E16}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E18}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E19}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E19}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E19}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E19}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

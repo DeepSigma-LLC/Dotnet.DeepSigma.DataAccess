@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="NSubstitute" Version="5.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DeepSigma.DataAccess.Abstraction\DeepSigma.DataAccess.Abstraction.csproj" />
+    <ProjectReference Include="..\DeepSigma.DataAccess.RelationalDatabase\DeepSigma.DataAccess.RelationalDatabase.csproj" />
+    <ProjectReference Include="..\DeepSigma.DataAccess.Sqlite\DeepSigma.DataAccess.Sqlite.csproj" />
+  </ItemGroup>
+
+  <!-- Link the Sqlite provider's SQL files into the test bin so the SchemaService can read them.
+       ProjectReference does not propagate <None Update CopyToOutputDirectory> the way NuGet contentFiles does. -->
+  <ItemGroup>
+    <None Include="..\DeepSigma.DataAccess.Sqlite\SQL\Sqlite_TableNames.sql" Link="SQL\Sqlite_TableNames.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\DeepSigma.DataAccess.Sqlite\SQL\Sqlite_TableAndFieldInfo.sql" Link="SQL\Sqlite_TableAndFieldInfo.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\DeepSigma.DataAccess.Sqlite\SQL\Sqlite_Constraints.sql" Link="SQL\Sqlite_Constraints.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\DeepSigma.DataAccess.Sqlite\SQL\Sqlite_ForeignKeyConstraints.sql" Link="SQL\Sqlite_ForeignKeyConstraints.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

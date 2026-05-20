@@ -4,6 +4,7 @@ using Xunit;
 
 namespace DeepSigma.DataAccess.SqlServer.Tests.Tests;
 
+[Trait("Category", "Integration")]
 public class SqlServerSchema_Tests
 {
     const string connection = "Data Source=localhost;Database=AutoML;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Connect Timeout=30;Encrypt=False;TrustServerCertificate=True;Packet Size=4096;Command Timeout=0;";
