@@ -32,45 +32,95 @@ public class RelationalDatabaseApi
     /// <summary>
     /// Gets all records matching the provided SQL query and parameters.
     /// </summary>
-    public async Task<IEnumerable<T>> GetAllAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<T>> GetAllAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("GetAllAsync<TParam, T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.QueryAsync<T>(cmd);
     }
 
     /// <summary>
     /// Gets all records matching the provided SQL query.
     /// </summary>
-    public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("GetAllAsync<T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.QueryAsync<T>(cmd);
     }
 
     /// <summary>
     /// Gets a single record by its ID. The SQL is expected to reference an <c>@Id</c> parameter.
     /// The id is bound as <c>object</c>, so any type Dapper can serialize (int, long, Guid, string, ...) is supported.
+    /// This is a convenience wrapper around <see cref="QueryFirstOrDefaultAsync{TParam, T}"/>.
     /// </summary>
-    public async Task<T?> GetByIdAsync<T>(string sql, object id, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<T?> GetByIdAsync<T>(string sql, object id, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("GetByIdAsync<T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, new { Id = id }, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, new { Id = id }, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.QueryFirstOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>
+    /// Returns the first record matching the SQL, or <c>default</c> when none exist. Tolerates multiple rows
+    /// (only the first is returned). Use when "give me one matching row" is the intent and extras are OK.
+    /// </summary>
+    public async Task<T?> QueryFirstOrDefaultAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("QueryFirstOrDefaultAsync<T> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.QueryFirstOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>
+    /// Returns the first record matching the SQL + parameters, or <c>default</c> when none exist.
+    /// Tolerates multiple rows (only the first is returned).
+    /// </summary>
+    public async Task<T?> QueryFirstOrDefaultAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("QueryFirstOrDefaultAsync<TParam, T> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.QueryFirstOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>
+    /// Returns the single record matching the SQL, or <c>default</c> when none exist.
+    /// Throws <see cref="InvalidOperationException"/> if more than one row is returned —
+    /// use this when you expect "exactly zero or one" (e.g. uniqueness checks, lookups by unique key).
+    /// </summary>
+    public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("QuerySingleOrDefaultAsync<T> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>
+    /// Returns the single record matching the SQL + parameters, or <c>default</c> when none exist.
+    /// Throws <see cref="InvalidOperationException"/> if more than one row is returned.
+    /// </summary>
+    public async Task<T?> QuerySingleOrDefaultAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("QuerySingleOrDefaultAsync<TParam, T> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<T>(cmd);
     }
 
     /// <summary>
     /// Inserts a new record and returns the generated ID.
     /// </summary>
-    public async Task<int> InsertAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> InsertAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("InsertAsync executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteScalarAsync<int>(cmd);
     }
 
@@ -78,44 +128,69 @@ public class RelationalDatabaseApi
     /// Executes the SQL once per parameter set and returns the total number of rows affected.
     /// Use this for bulk inserts where you do not need the generated identifiers back.
     /// </summary>
-    public async Task<int> InsertAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> InsertAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("InsertAllAsync executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteAsync(cmd);
     }
 
     /// <summary>
-    /// Executes an UPDATE statement and returns the number of affected rows.
+    /// Executes a non-query SQL statement and returns the number of affected rows.
+    /// Suitable for parameterless UPDATEs, DELETEs, or DDL such as <c>CREATE TABLE</c> / <c>ALTER TABLE</c>.
+    /// (Note: many providers report <c>-1</c> rows-affected for DDL — the value is meaningful for DML only.)
     /// </summary>
-    public async Task<int> UpdateAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateAsync(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("UpdateAsync executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>
+    /// Executes an UPDATE statement with parameters and returns the number of affected rows.
+    /// </summary>
+    public async Task<int> UpdateAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("UpdateAsync<TParam> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteAsync(cmd);
     }
 
     /// <summary>
     /// Executes the SQL once per parameter set and returns the total number of rows affected across all sets.
     /// </summary>
-    public async Task<int> UpdateAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("UpdateAllAsync executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteAsync(cmd);
     }
 
     /// <summary>
-    /// Executes a SQL command and returns a single scalar value of type T.
+    /// Executes a SQL command and returns the first column of the first row as <typeparamref name="T"/>.
+    /// Typical use: <c>SELECT COUNT(*)</c>, <c>SELECT MAX(...)</c>, single-value lookups.
     /// </summary>
-    public async Task<T?> ExecuteAsync<TParam, T>(string sql, TParam? parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<T?> ExecuteScalarAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("ExecuteAsync<TParam, T> executing");
+        _logger.LogDebug("ExecuteScalarAsync<T> executing");
         using IDbConnection connection = _connectionFactory.Create();
-        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.ExecuteScalarAsync<T>(cmd);
+    }
+
+    /// <summary>
+    /// Executes a SQL command with parameters and returns the first column of the first row as <typeparamref name="T"/>.
+    /// </summary>
+    public async Task<T?> ExecuteScalarAsync<TParam, T>(string sql, TParam? parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("ExecuteScalarAsync<TParam, T> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteScalarAsync<T>(cmd);
     }
 
@@ -124,7 +199,7 @@ public class RelationalDatabaseApi
     /// materializing the entire result set in memory. The connection stays open until enumeration completes
     /// or the enumerator is disposed.
     /// </summary>
-    public async IAsyncEnumerable<T> QueryStreamAsync<T>(string sql, int? commandTimeout = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<T> QueryStreamAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("QueryStreamAsync<T> executing");
         using IDbConnection connection = _connectionFactory.Create();
@@ -133,7 +208,7 @@ public class RelationalDatabaseApi
             throw new InvalidOperationException(
                 $"QueryStreamAsync requires the connection factory to return a {nameof(DbConnection)}-derived type; got {connection.GetType().Name}.");
         }
-        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
+        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, commandTimeout: commandTimeout, commandType: commandType).WithCancellation(cancellationToken))
         {
             yield return item;
         }
@@ -142,7 +217,7 @@ public class RelationalDatabaseApi
     /// <summary>
     /// Streams query results with parameters as <see cref="IAsyncEnumerable{T}"/>.
     /// </summary>
-    public async IAsyncEnumerable<T> QueryStreamAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<T> QueryStreamAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("QueryStreamAsync<TParam, T> executing");
         using IDbConnection connection = _connectionFactory.Create();
@@ -151,7 +226,7 @@ public class RelationalDatabaseApi
             throw new InvalidOperationException(
                 $"QueryStreamAsync requires the connection factory to return a {nameof(DbConnection)}-derived type; got {connection.GetType().Name}.");
         }
-        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, parameters, commandTimeout: commandTimeout).WithCancellation(cancellationToken))
+        await foreach (T item in dbConnection.QueryUnbufferedAsync<T>(sql, parameters, commandTimeout: commandTimeout, commandType: commandType).WithCancellation(cancellationToken))
         {
             yield return item;
         }

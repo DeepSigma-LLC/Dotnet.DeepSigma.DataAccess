@@ -49,17 +49,15 @@ public class RedisCacheApi
     }
 
     /// <summary>
-    /// Removes the cached value for the given key.
+    /// Removes the cached value for the given key. Returns <c>true</c> if the key existed and was deleted,
+    /// <c>false</c> if it did not exist. Single Redis round-trip.
     /// </summary>
-    public async Task<object> RemoveCacheDataAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<bool> RemoveCacheDataAsync(string key, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        bool valueExists = await _database.KeyExistsAsync(key);
-        if (valueExists)
-        {
-            return await _database.KeyDeleteAsync(key);
-        }
-        return false;
+        // KeyDeleteAsync returns true if the key was deleted, false if it didn't exist —
+        // no need for a separate KeyExistsAsync probe.
+        return await _database.KeyDeleteAsync(key);
     }
 
     /// <summary>

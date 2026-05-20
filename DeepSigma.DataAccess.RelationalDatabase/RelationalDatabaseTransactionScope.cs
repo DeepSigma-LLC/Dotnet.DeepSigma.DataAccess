@@ -31,66 +31,114 @@ public sealed class RelationalDatabaseTransactionScope : IAsyncDisposable
     }
 
     /// <summary>Gets all records matching the SQL + parameters, executed within the transaction.</summary>
-    public async Task<IEnumerable<T>> GetAllAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<T>> GetAllAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] GetAllAsync<TParam, T>");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.QueryAsync<T>(cmd);
     }
 
     /// <summary>Gets all records matching the SQL, executed within the transaction.</summary>
-    public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<T>> GetAllAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] GetAllAsync<T>");
-        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.QueryAsync<T>(cmd);
     }
 
     /// <summary>Gets a single record by id, executed within the transaction.</summary>
-    public async Task<T?> GetByIdAsync<T>(string sql, object id, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<T?> GetByIdAsync<T>(string sql, object id, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] GetByIdAsync<T>");
-        var cmd = new CommandDefinition(sql, new { Id = id }, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, new { Id = id }, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.QueryFirstOrDefaultAsync<T>(cmd);
     }
 
+    /// <summary>Returns the first row matching the SQL, or default; tolerates extras. Within the transaction.</summary>
+    public async Task<T?> QueryFirstOrDefaultAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] QueryFirstOrDefaultAsync<T>");
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.QueryFirstOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>Returns the first row matching the SQL + parameters, or default. Within the transaction.</summary>
+    public async Task<T?> QueryFirstOrDefaultAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] QueryFirstOrDefaultAsync<TParam, T>");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.QueryFirstOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>Returns the single row matching the SQL, or default; throws on >1. Within the transaction.</summary>
+    public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] QuerySingleOrDefaultAsync<T>");
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.QuerySingleOrDefaultAsync<T>(cmd);
+    }
+
+    /// <summary>Returns the single row matching the SQL + parameters, or default; throws on >1. Within the transaction.</summary>
+    public async Task<T?> QuerySingleOrDefaultAsync<TParam, T>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] QuerySingleOrDefaultAsync<TParam, T>");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.QuerySingleOrDefaultAsync<T>(cmd);
+    }
+
     /// <summary>Inserts a record and returns the generated id, executed within the transaction.</summary>
-    public async Task<int> InsertAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> InsertAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] InsertAsync");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.ExecuteScalarAsync<int>(cmd);
     }
 
     /// <summary>Executes SQL once per parameter set within the transaction. Returns the total rows affected.</summary>
-    public async Task<int> InsertAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> InsertAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] InsertAllAsync");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.ExecuteAsync(cmd);
     }
 
-    /// <summary>Executes an UPDATE within the transaction. Returns the affected row count.</summary>
-    public async Task<int> UpdateAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    /// <summary>Executes a non-query SQL statement within the transaction. Returns the affected row count.</summary>
+    public async Task<int> UpdateAsync(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] UpdateAsync");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>Executes an UPDATE with parameters within the transaction. Returns the affected row count.</summary>
+    public async Task<int> UpdateAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] UpdateAsync<TParam>");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.ExecuteAsync(cmd);
     }
 
     /// <summary>Executes SQL once per parameter set within the transaction. Returns total rows affected.</summary>
-    public async Task<int> UpdateAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[TX] UpdateAllAsync");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.ExecuteAsync(cmd);
     }
 
-    /// <summary>Executes a SQL command and returns a single scalar of type T, within the transaction.</summary>
-    public async Task<T?> ExecuteAsync<TParam, T>(string sql, TParam? parameters, int? commandTimeout = null, CancellationToken cancellationToken = default)
+    /// <summary>Executes a SQL command and returns the first column of the first row as <typeparamref name="T"/>, within the transaction.</summary>
+    public async Task<T?> ExecuteScalarAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("[TX] ExecuteAsync<TParam, T>");
-        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+        _logger.LogDebug("[TX] ExecuteScalarAsync<T>");
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.ExecuteScalarAsync<T>(cmd);
+    }
+
+    /// <summary>Executes a SQL command with parameters and returns the first column of the first row as <typeparamref name="T"/>, within the transaction.</summary>
+    public async Task<T?> ExecuteScalarAsync<TParam, T>(string sql, TParam? parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] ExecuteScalarAsync<TParam, T>");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await _connection.ExecuteScalarAsync<T>(cmd);
     }
 

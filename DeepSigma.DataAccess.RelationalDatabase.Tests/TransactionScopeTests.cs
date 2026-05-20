@@ -14,8 +14,8 @@ public class TransactionScopeTests : IClassFixture<SqliteTestHarness>
 
     private async Task<long> CountAsync(CancellationToken cancellationToken)
     {
-        long? count = await _db.ExecuteAsync<object, long?>(
-            "SELECT COUNT(*) FROM items", parameters: null, cancellationToken: cancellationToken);
+        long? count = await _db.ExecuteScalarAsync<long?>(
+            "SELECT COUNT(*) FROM items", cancellationToken: cancellationToken);
         return count ?? 0;
     }
 

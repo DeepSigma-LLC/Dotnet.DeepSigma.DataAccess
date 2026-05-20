@@ -27,7 +27,7 @@ Constructed with a Redis connection string and an instance name (currently store
 |---|---|---|
 | `GetCacheDataAsync<T>(key)` | `T?` | Reads the string at `key`, returns `default` if empty, otherwise deserialises via `JsonConvert`. |
 | `SetCacheDataAsync<T>(key, value, expirationTime)` | `bool` | Serialises `value` to JSON and stores it with a TTL derived from `expirationTime - DateTime.Now`. |
-| `RemoveCacheDataAsync(key)` | `object` | If the key exists, deletes it and returns the driver's `bool` result; otherwise returns `false`. |
+| `RemoveCacheDataAsync(key)` | `bool` | Deletes the key. Returns `true` if it existed and was deleted, `false` if it did not exist. Single Redis round-trip. |
 
 ## Dependency-injection registration
 

@@ -27,12 +27,18 @@ A small Dapper wrapper that takes an `IDbConnectionFactory` and exposes async he
 |---|---|---|
 | `GetAllAsync<T>(sql, [timeout])` | `IEnumerable<T>` | Query rows without parameters. |
 | `GetAllAsync<TParam, T>(sql, parameters, [timeout])` | `IEnumerable<T>` | Query rows with a parameter object. |
-| `GetByIdAsync<T>(sql, id, [timeout])` | `T?` | Convenience wrapper that binds `{ Id = id }` and returns the first row. `id` is `object`, so any Dapper-bindable type works. |
+| `GetByIdAsync<T>(sql, id, [timeout])` | `T?` | Convenience wrapper that binds `{ Id = id }` and returns the first row. Equivalent to `QueryFirstOrDefaultAsync` with a pre-bound `@Id` parameter. |
+| `QueryFirstOrDefaultAsync<T>(sql, [timeout])` | `T?` | First row matching `sql`, or `default` when none. Tolerates extras — only the first is returned. |
+| `QueryFirstOrDefaultAsync<TParam, T>(sql, parameters, [timeout])` | `T?` | Same with a parameter object. |
+| `QuerySingleOrDefaultAsync<T>(sql, [timeout])` | `T?` | Single row matching `sql`, or `default` when none. **Throws `InvalidOperationException` if more than one row** — use for uniqueness checks. |
+| `QuerySingleOrDefaultAsync<TParam, T>(sql, parameters, [timeout])` | `T?` | Same with a parameter object. |
 | `InsertAsync<TParam>(sql, parameters, [timeout])` | `int` | Execute an `INSERT` that returns the generated id via `ExecuteScalar`. SQL must include a `RETURNING id` (Postgres) or `OUTPUT INSERTED.Id` (SQL Server) clause. |
 | `InsertAllAsync<TParam>(sql, parameters, [timeout])` | `int` | Execute the SQL once per parameter set; returns the total number of rows affected. Does **not** return generated ids — loop with `InsertAsync` if you need them. |
-| `UpdateAsync<TParam>(sql, parameters, [timeout])` | `int` | Execute an `UPDATE` and return the number of affected rows. |
+| `UpdateAsync(sql, [timeout])` | `int` | Execute a non-query SQL statement (parameterless UPDATE / DELETE / DDL). Returns affected row count (may be `-1` for DDL on some providers). |
+| `UpdateAsync<TParam>(sql, parameters, [timeout])` | `int` | Same with a parameter object. |
 | `UpdateAllAsync<TParam>(sql, parameters, [timeout])` | `int` | Execute the SQL once per parameter set; returns the total number of rows affected across all sets. |
-| `ExecuteAsync<TParam, T>(sql, parameters, [timeout])` | `T?` | Execute arbitrary SQL and return a single scalar of type `T`. |
+| `ExecuteScalarAsync<T>(sql, [timeout])` | `T?` | Execute SQL and return the first column of the first row as `T`. Typical use: `SELECT COUNT(*)`, `SELECT MAX(...)`, single-value lookups. |
+| `ExecuteScalarAsync<TParam, T>(sql, parameters, [timeout])` | `T?` | Same with a parameter object. |
 | `QueryStreamAsync<T>(sql, [timeout])` | `IAsyncEnumerable<T>` | Stream rows lazily via `Dapper.QueryUnbufferedAsync` — connection stays open until enumeration ends. |
 | `QueryStreamAsync<TParam, T>(sql, parameters, [timeout])` | `IAsyncEnumerable<T>` | Same with a parameter object. |
 | `BeginTransactionAsync([isolationLevel])` | `RelationalDatabaseTransactionScope` | Opens a connection, begins a transaction, and returns a scope mirroring the CRUD methods. See "Transactions" below. |
@@ -64,10 +70,28 @@ IEnumerable<UserDto> users = await db.GetAllAsync<object, UserDto>(
     "SELECT id, name FROM users WHERE id >= @MinId",
     new { MinId = 100 });
 
+// Get one row by an arbitrary WHERE clause — replaces the awkward
+// `(await GetAllAsync<...>(...)).FirstOrDefault()` pattern.
+UserDto? user = await db.QueryFirstOrDefaultAsync<object, UserDto>(
+    "SELECT id, name FROM users WHERE email = @Email",
+    new { Email = "ada@example.com" });
+
+// Uniqueness check — throws if a duplicate email slipped past the constraint.
+UserDto? unique = await db.QuerySingleOrDefaultAsync<object, UserDto>(
+    "SELECT id, name FROM users WHERE email = @Email",
+    new { Email = "ada@example.com" });
+
 // Insert returning the new id
 int newId = await db.InsertAsync(
     "INSERT INTO users (name) VALUES (@Name) RETURNING id",
     new { Name = "Ada" });
+
+// Scalar — single value lookup
+long? count = await db.ExecuteScalarAsync<long?>(
+    "SELECT COUNT(*) FROM users WHERE active = TRUE");
+
+// DDL — no parameters, fire-and-forget
+await db.UpdateAsync("CREATE TABLE IF NOT EXISTS audit (id SERIAL PRIMARY KEY, message TEXT)");
 ```
 
 ## Streaming large result sets
@@ -83,6 +107,46 @@ await foreach (UserDto user in db.QueryStreamAsync<UserDto>(
 ```
 
 The underlying connection stays open until the enumerator is disposed (either by the `await foreach` completing or via early disposal). Don't capture and hold the `IAsyncEnumerable<T>` beyond the lifetime of your call site.
+
+## Stored procedures
+
+Every method that accepts SQL also accepts an optional `CommandType? commandType = null` parameter. Pass `CommandType.StoredProcedure` to have Dapper treat the SQL string as a procedure name and bind parameters by name to the procedure's declared parameters — instead of executing the string as a free-form SQL statement.
+
+```csharp
+// Input parameters only — pass the procedure name as the SQL string,
+// parameters as an anonymous object, and CommandType.StoredProcedure.
+IEnumerable<UserDto> users = await db.GetAllAsync<object, UserDto>(
+    "GetActiveUsers",
+    new { MinId = 100 },
+    commandType: CommandType.StoredProcedure);
+
+// Single result via QueryFirstOrDefaultAsync
+UserDto? user = await db.QueryFirstOrDefaultAsync<object, UserDto>(
+    "GetUserByEmail",
+    new { Email = "ada@example.com" },
+    commandType: CommandType.StoredProcedure);
+
+// A non-query stored procedure (no result set)
+await db.UpdateAsync(
+    "ArchiveOldOrders",
+    new { OlderThan = DateTime.UtcNow.AddYears(-5) },
+    commandType: CommandType.StoredProcedure);
+```
+
+You can still execute stored procedures with `commandType: null` (the default) by writing the SQL as `"EXEC GetActiveUsers @MinId"`. The two approaches behave equivalently for the common "input parameters + one result set" shape; `CommandType.StoredProcedure` is cleaner for that case and is required for procedures that use **`OUTPUT` / `RETURN` parameters** — wire those up via Dapper's `DynamicParameters`:
+
+```csharp
+var parameters = new DynamicParameters();
+parameters.Add("@MinId", 100, DbType.Int32);
+parameters.Add("@Total", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+IEnumerable<UserDto> users = await db.GetAllAsync<DynamicParameters, UserDto>(
+    "GetUsersAboveWithTotal",
+    parameters,
+    commandType: CommandType.StoredProcedure);
+
+int total = parameters.Get<int>("@Total");
+```
 
 ## Transactions
 
@@ -108,7 +172,7 @@ You can pass an `IsolationLevel` if the default isn't what you want:
 await using var tx = await db.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 ```
 
-All scope methods accept the same `commandTimeout` and `CancellationToken` parameters as the top-level `RelationalDatabaseApi` methods.
+The scope mirrors the full method surface of `RelationalDatabaseApi` — `GetAllAsync`, `GetByIdAsync`, `QueryFirstOrDefaultAsync`, `QuerySingleOrDefaultAsync`, `InsertAsync` / `InsertAllAsync`, `UpdateAsync` / `UpdateAllAsync`, `ExecuteScalarAsync`, plus `CommitAsync`. All scope methods accept the same `commandTimeout`, `commandType`, and `CancellationToken` parameters. There is no streaming method inside a transaction scope — `QueryStreamAsync` only exists on the top-level API.
 
 ## Swapping providers
 

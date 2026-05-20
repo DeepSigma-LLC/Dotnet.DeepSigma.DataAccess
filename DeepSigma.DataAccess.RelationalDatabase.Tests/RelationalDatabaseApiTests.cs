@@ -130,13 +130,92 @@ public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
     }
 
     [Fact]
-    public async Task ExecuteAsync_returns_scalar()
+    public async Task ExecuteScalarAsync_returns_scalar()
     {
         var ct = TestContext.Current.CancellationToken;
-        long? count = await _db.ExecuteAsync<object, long?>(
-            "SELECT COUNT(*) FROM items", parameters: null, cancellationToken: ct);
+        long? count = await _db.ExecuteScalarAsync<long?>(
+            "SELECT COUNT(*) FROM items", cancellationToken: ct);
 
         Assert.True(count >= 3);
+    }
+
+    [Fact]
+    public async Task QueryFirstOrDefaultAsync_returns_first_matching_row()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Item? item = await _db.QueryFirstOrDefaultAsync<object, Item>(
+            "SELECT id, name, price FROM items WHERE price >= @Min ORDER BY id",
+            new { Min = 1.0 }, cancellationToken: ct);
+
+        Assert.NotNull(item);
+        Assert.Equal("apple", item!.Name);
+    }
+
+    [Fact]
+    public async Task QueryFirstOrDefaultAsync_returns_default_when_no_match()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Item? item = await _db.QueryFirstOrDefaultAsync<object, Item>(
+            "SELECT id, name, price FROM items WHERE name = @Name",
+            new { Name = "does_not_exist" }, cancellationToken: ct);
+
+        Assert.Null(item);
+    }
+
+    [Fact]
+    public async Task QueryFirstOrDefaultAsync_tolerates_multiple_matches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Matches all rows; should not throw, should return the first.
+        Item? item = await _db.QueryFirstOrDefaultAsync<Item>(
+            "SELECT id, name, price FROM items ORDER BY id", cancellationToken: ct);
+
+        Assert.NotNull(item);
+    }
+
+    [Fact]
+    public async Task QuerySingleOrDefaultAsync_returns_match_when_exactly_one()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Item? item = await _db.QuerySingleOrDefaultAsync<object, Item>(
+            "SELECT id, name, price FROM items WHERE name = @Name",
+            new { Name = "banana" }, cancellationToken: ct);
+
+        Assert.NotNull(item);
+        Assert.Equal(0.5, item!.Price);
+    }
+
+    [Fact]
+    public async Task QuerySingleOrDefaultAsync_returns_default_when_zero_matches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Item? item = await _db.QuerySingleOrDefaultAsync<object, Item>(
+            "SELECT id, name, price FROM items WHERE name = @Name",
+            new { Name = "does_not_exist" }, cancellationToken: ct);
+
+        Assert.Null(item);
+    }
+
+    [Fact]
+    public async Task QuerySingleOrDefaultAsync_throws_when_more_than_one_match()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // The items table has multiple rows, so this should throw.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _db.QuerySingleOrDefaultAsync<Item>(
+                "SELECT id, name, price FROM items", cancellationToken: ct));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_no_params_overload_runs_ddl()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // DDL — many providers report -1 rows-affected. We don't assert on the value,
+        // only that the call did not throw and returned an int.
+        int affected = await _db.UpdateAsync(
+            "CREATE TABLE IF NOT EXISTS _ddl_test (id INTEGER PRIMARY KEY)", cancellationToken: ct);
+
+        Assert.True(affected == -1 || affected >= 0);
     }
 
     [Fact]

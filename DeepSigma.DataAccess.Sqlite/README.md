@@ -103,7 +103,7 @@ const string connectionString = "Data Source=file:test_db_for_my_test?mode=memor
 // First connection sets up schema:
 var factory = new SqliteConnectionFactory(connectionString);
 var db = new RelationalDatabaseApi(factory);
-await db.ExecuteAsync<object, int>("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)", null);
+await db.UpdateAsync("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
 await db.InsertAsync("INSERT INTO users (name) VALUES (@Name)", new { Name = "Ada" });
 
 // Subsequent connections (via the same factory) see the same data.
@@ -132,7 +132,7 @@ For maximum throughput, also consider:
 - `PRAGMA synchronous = NORMAL;` (per-connection; trades a tiny durability window for substantial speed)
 - `PRAGMA temp_store = MEMORY;` (per-connection)
 
-Set these via a quick `ExecuteAsync` after opening the database.
+Set these via `db.UpdateAsync("PRAGMA journal_mode = WAL;")` after opening the database.
 
 ## Health checks
 
