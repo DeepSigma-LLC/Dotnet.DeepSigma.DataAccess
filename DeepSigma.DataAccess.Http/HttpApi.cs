@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeepSigma.Core.Utilities;
 using DeepSigma.DataAccess.CsvUtilities.Reading;
 using DeepSigma.DataAccess.CsvUtilities.Results;
 using Microsoft.Extensions.Logging;
@@ -132,4 +134,98 @@ public class HttpApi
         CsvImportResult<T> results = CsvReader.ReadFromStringSafe<T>(csvText);
         return results.IsSuccess ? results.Records : null;
     }
+
+    /// <summary>
+    /// Fetches XML data from the URL and deserializes it into <typeparamref name="T"/>.
+    /// </summary>
+    public async Task<T?> GetDataFromXmlUrlAsync<T>(string url, int timeoutInSeconds = 15, Action<string?>? apiResultLoggingMethod = null, CancellationToken cancellationToken = default)
+    {
+        string? xml = await GetXmlResponseAsync(url, timeoutInSeconds, cancellationToken).ConfigureAwait(false);
+
+        apiResultLoggingMethod?.Invoke(xml);
+
+        if (string.IsNullOrWhiteSpace(xml)) { return default; }
+        return LoadFromXml<T>(xml);
+    }
+
+    /// <summary>
+    /// Fetches raw XML from the URL as a string.
+    /// </summary>
+    public async Task<string?> GetXmlResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("HTTP GET (XML) {Url}, timeout {Timeout}s", urlEndpoint, timeoutInSeconds);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
+
+        using var response = await _http.GetAsync(urlEndpoint, cts.Token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Streams elements matching <paramref name="elementName"/> from a large XML response, yielding
+    /// each deserialized as <typeparamref name="T"/>. Memory usage stays bounded regardless of payload size.
+    /// Intended for OAI-PMH harvests, RSS feeds, S3 inventory, and similar large XML streams.
+    /// </summary>
+    public async IAsyncEnumerable<T> StreamXmlElementsAsync<T>(
+        string urlEndpoint,
+        string elementName,
+        string? namespaceUri = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("HTTP GET (XML stream) {Url}, element <{Element}>", urlEndpoint, elementName);
+
+        using var response = await _http
+            .GetAsync(urlEndpoint, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+
+        await foreach (T item in XmlReaderExtensions.ReadElementsAsync<T>(stream, elementName, namespaceUri, cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            yield return item;
+        }
+    }
+
+    /// <summary>
+    /// Streams a response body into <paramref name="destination"/>. Suitable for binary downloads
+    /// or any large payload where buffering the whole body in memory is undesirable.
+    /// </summary>
+    public async Task DownloadToStreamAsync(string url, Stream destination, int bufferSize = 81_920, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        _logger.LogDebug("HTTP GET (download) {Url}", url);
+
+        using var response = await _http
+            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await source.CopyToAsync(destination, bufferSize, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Convenience wrapper over <see cref="DownloadToStreamAsync"/> that writes to a file path.
+    /// Creates the destination's directory if it does not exist.
+    /// </summary>
+    public async Task DownloadToFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+
+        string? directory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(directory)) { Directory.CreateDirectory(directory); }
+
+        await using FileStream file = new(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await DownloadToStreamAsync(url, file, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Deserializes an XML string into <typeparamref name="T"/>. Pure helper — does not require an <see cref="HttpClient"/>.
+    /// </summary>
+    public static T? LoadFromXml<T>(string xmlText) => XMLUtilities.FromString<T>(xmlText);
 }
