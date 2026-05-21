@@ -1,8 +1,6 @@
 using DeepSigma.DataAccess.Abstraction;
-using DeepSigma.DataAccess.Abstraction.Models;
 using DeepSigma.DataAccess.RelationalDatabase;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DeepSigma.DataAccess.Sqlite;
 
@@ -10,59 +8,17 @@ namespace DeepSigma.DataAccess.Sqlite;
 /// Retrieves schema information from a SQLite database: tables, fields, constraints, and foreign keys.
 /// All operations report <c>TableSchema = "main"</c> since SQLite has no real schema concept.
 /// </summary>
-public class SqliteSchemaService : IDatabaseSchemaService
+public sealed class SqliteSchemaService : RelationalSchemaServiceBase
 {
-    private readonly RelationalDatabaseApi _api;
-    private readonly string _sqlDirectory;
-    private readonly ILogger<SqliteSchemaService> _logger;
-
-    /// <summary>
-    /// Initializes a new instance using a connection string.
-    /// </summary>
+    /// <summary>Initializes a new instance using a connection string.</summary>
     public SqliteSchemaService(string connectionString, ILogger<SqliteSchemaService>? logger = null)
         : this(new SqliteConnectionFactory(connectionString), logger)
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance using a connection factory.
-    /// </summary>
+    /// <summary>Initializes a new instance using a connection factory.</summary>
     public SqliteSchemaService(IDbConnectionFactory connectionFactory, ILogger<SqliteSchemaService>? logger = null)
+        : base(connectionFactory, filePrefix: "Sqlite", logger)
     {
-        _api = new RelationalDatabaseApi(connectionFactory);
-        _sqlDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SQL");
-        _logger = logger ?? NullLogger<SqliteSchemaService>.Instance;
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<TableName>> GetTablesAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SqliteSchemaService: executing schema query");
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Sqlite_TableNames.sql"), cancellationToken);
-        return await _api.GetAllAsync<TableName>(sql, cancellationToken: cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<TableField>> GetTableFieldsAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SqliteSchemaService: executing schema query");
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Sqlite_TableAndFieldInfo.sql"), cancellationToken);
-        return await _api.GetAllAsync<TableField>(sql, cancellationToken: cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<TableConstraint>> GetConstraintsAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SqliteSchemaService: executing schema query");
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Sqlite_Constraints.sql"), cancellationToken);
-        return await _api.GetAllAsync<TableConstraint>(sql, cancellationToken: cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<TableForeignKey>> GetForeignKeysAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("SqliteSchemaService: executing schema query");
-        string sql = await File.ReadAllTextAsync(Path.Combine(_sqlDirectory, "Sqlite_ForeignKeyConstraints.sql"), cancellationToken);
-        return await _api.GetAllAsync<TableForeignKey>(sql, cancellationToken: cancellationToken);
     }
 }

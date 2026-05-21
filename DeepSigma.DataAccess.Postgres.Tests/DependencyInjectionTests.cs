@@ -60,4 +60,16 @@ public class DependencyInjectionTests
 
         Assert.NotNull(bulk);
     }
+
+    [Fact]
+    public void AddDeepSigmaPostgres_resolves_MigrationRunner()
+    {
+        var services = new ServiceCollection();
+        services.AddDeepSigmaPostgres(DummyConnectionString);
+        using var provider = services.BuildServiceProvider();
+
+        var runner = provider.GetRequiredService<MigrationRunner>();
+
+        Assert.NotNull(runner);
+    }
 }

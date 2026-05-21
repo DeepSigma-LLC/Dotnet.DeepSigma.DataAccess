@@ -15,7 +15,7 @@ The 2.x layout splits each storage concern into its own package, with a small sh
 | Package | Purpose | Key dependency |
 |---|---|---|
 | [DeepSigma.DataAccess.Abstraction](DeepSigma.DataAccess.Abstraction/README.md) | Shared interfaces (`IDbConnectionFactory`, `IDatabaseSchemaService`) and schema models (`TableName`, `TableField`, `TableConstraint`, `TableForeignKey`). | _(none)_ |
-| [DeepSigma.DataAccess.RelationalDatabase](DeepSigma.DataAccess.RelationalDatabase/README.md) | Shared Dapper-backed `RelationalDatabaseApi`. Pair with a provider package. | Dapper |
+| [DeepSigma.DataAccess.RelationalDatabase](DeepSigma.DataAccess.RelationalDatabase/README.md) | Shared Dapper-backed `RelationalDatabaseApi` (CRUD + transactions + streaming), `MigrationRunner` (idempotent schema migrations), and the `RelationalConnectionFactoryBase<TConnection>` / `RelationalSchemaServiceBase` extension points for building a custom provider. Pair with a provider package. | Dapper |
 | [DeepSigma.DataAccess.SqlServer](DeepSigma.DataAccess.SqlServer/README.md) | SQL Server connection factory, schema service, and `SqlBulkCopy`-based bulk-copier. | Microsoft.Data.SqlClient |
 | [DeepSigma.DataAccess.Postgres](DeepSigma.DataAccess.Postgres/README.md) | PostgreSQL connection factory, schema service, and binary-`COPY`-based bulk-copier. | Npgsql |
 | [DeepSigma.DataAccess.Sqlite](DeepSigma.DataAccess.Sqlite/README.md) | SQLite connection factory + schema service. Particularly useful for unit-testing relational code with no live infrastructure. | Microsoft.Data.Sqlite |
@@ -113,6 +113,28 @@ public class UserRepository(RelationalDatabaseApi db)
 
 All registrations are **singletons** — the underlying connection / client objects (`CosmosClient`, `MongoClient`, `ConnectionMultiplexer`, `BlobContainerClient`) are designed to be shared. `CosmosDbApi` implements `IDisposable`, so the container disposes it on shutdown. See each provider's README for the exact registration shape.
 
+## Migrations
+
+Every relational provider (`SqlServer`, `Postgres`, `Sqlite`) auto-registers a `MigrationRunner` singleton when you call its `AddDeepSigma*` extension. Hand it an ordered list of `Migration(id, sql, description?)` records and it applies anything not yet recorded in the `_migrations` tracking table — each migration in its own transaction, so a failure leaves no partial state.
+
+```csharp
+public sealed record Migration(string Id, string Sql, string? Description = null);
+
+public class StartupMigrations(MigrationRunner runner)
+{
+    private static readonly Migration[] All =
+    [
+        new("20260101_001", "CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);"),
+        new("20260108_002", "ALTER TABLE users ADD COLUMN email TEXT;"),
+        new("20260115_003", "CREATE INDEX users_email_idx ON users (email);"),
+    ];
+
+    public Task<IReadOnlyList<string>> ApplyAsync(CancellationToken ct) => runner.ApplyAsync(All, ct);
+}
+```
+
+The runner returns the ids that were newly applied this run. Re-running with the same list is a no-op. See the [RelationalDatabase README](DeepSigma.DataAccess.RelationalDatabase/README.md#migrations) for design rationale and per-provider DDL details.
+
 ## Health checks
 
 Every provider (except `Http`, which has no canonical endpoint to probe) ships an `IHealthChecksBuilder` extension that pairs with `Microsoft.Extensions.Diagnostics.HealthChecks`:
@@ -153,24 +175,54 @@ Dotnet.DeepSigma.DataAccess/
 ├── DeepSigma.DataAccess.AzureBlobStorage/
 ├── DeepSigma.DataAccess.Http/
 │
+├── DeepSigma.DataAccess.Abstraction.Tests/
+├── DeepSigma.DataAccess.RelationalDatabase.Tests/
+├── DeepSigma.DataAccess.SqlServer.Tests/
+├── DeepSigma.DataAccess.Postgres.Tests/
+├── DeepSigma.DataAccess.Sqlite.Tests/
 ├── DeepSigma.DataAccess.MongoDB.Tests/
-└── DeepSigma.DataAccess.SqlServer.Tests/
+├── DeepSigma.DataAccess.Cosmos.Tests/
+├── DeepSigma.DataAccess.AzureBlobStorage.Tests/
+└── DeepSigma.DataAccess.Http.Tests/
 ```
 
 Every package has its own `README.md` covering installation, dependencies, surface area, and a runnable quick-start example. They're linked from the [package matrix](#package-matrix) above and ship with the NuGet package itself.
 
 ## Tests
 
-Two xUnit-based test projects:
+Nine xUnit (v3) test projects, one per package. Most are **unit tests** that run with no external infrastructure (SQLite-backed where a database is needed). A subset are **integration tests** that hit real services — these are tagged `[Trait("Category", "Integration")]` and are excluded by default in the commands below.
 
-- `DeepSigma.DataAccess.MongoDB.Tests` — exercises the MongoDB CRUD helpers against `mongodb://localhost:27017/`.
-- `DeepSigma.DataAccess.SqlServer.Tests` — exercises the SQL Server schema service against a local SQL Server instance with a database named `AutoML`.
+| Project | Style | Notes |
+|---|---|---|
+| `DeepSigma.DataAccess.Abstraction.Tests` | Unit | Contract / model tests. |
+| `DeepSigma.DataAccess.RelationalDatabase.Tests` | Unit | `RelationalDatabaseApi`, `RelationalDatabaseTransactionScope`, `MigrationRunner` — all against in-memory SQLite. |
+| `DeepSigma.DataAccess.Sqlite.Tests` | Unit | Connection factory, schema service, health check, DI smoke. |
+| `DeepSigma.DataAccess.SqlServer.Tests` | Unit + Integration | DI smoke (unit); schema service + `MigrationRunner` (integration, requires local SQL Server with `AutoML` database). |
+| `DeepSigma.DataAccess.Postgres.Tests` | Unit + Integration | DI smoke (unit); `MigrationRunner` (integration, requires local PostgreSQL). |
+| `DeepSigma.DataAccess.MongoDB.Tests` | Integration | Requires `mongodb://localhost:27017/`. |
+| `DeepSigma.DataAccess.Cosmos.Tests` | Unit | DI / contract tests. |
+| `DeepSigma.DataAccess.AzureBlobStorage.Tests` | Unit | DI / contract tests. |
+| `DeepSigma.DataAccess.Http.Tests` | Unit | Uses a mock `HttpMessageHandler`. |
 
-Both are integration tests that hit real local infrastructure. Provision the services (or update the connection strings) before running:
+### Run only the unit tests
+
+```bash
+dotnet test DeepSigma.DataAccess.sln --filter "Category!=Integration"
+```
+
+### Run everything (requires the local infrastructure noted above)
 
 ```bash
 dotnet test DeepSigma.DataAccess.sln
 ```
+
+### Run only the integration tests
+
+```bash
+dotnet test DeepSigma.DataAccess.sln --filter "Category=Integration"
+```
+
+The `MigrationRunner` integration tests honour `DEEPSIGMA_POSTGRES_CONNECTION` and `DEEPSIGMA_SQLSERVER_CONNECTION` environment variables, so you can point them at your own server without editing the test code.
 
 ## Target framework
 

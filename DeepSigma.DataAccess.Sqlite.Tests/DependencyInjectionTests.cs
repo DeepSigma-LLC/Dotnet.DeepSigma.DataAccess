@@ -50,4 +50,16 @@ public class DependencyInjectionTests : IClassFixture<SqliteSharedMemoryFixture>
 
         Assert.IsType<SqliteSchemaService>(schema);
     }
+
+    [Fact]
+    public void AddDeepSigmaSqlite_resolves_MigrationRunner()
+    {
+        var services = new ServiceCollection();
+        services.AddDeepSigmaSqlite(_fixture.ConnectionString);
+        using var provider = services.BuildServiceProvider();
+
+        var runner = provider.GetRequiredService<MigrationRunner>();
+
+        Assert.NotNull(runner);
+    }
 }

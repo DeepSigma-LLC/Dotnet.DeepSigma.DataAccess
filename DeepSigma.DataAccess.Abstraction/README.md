@@ -81,6 +81,12 @@ public sealed class MyDbSchemaService : IDatabaseSchemaService
 
 You can then plug your factory into `RelationalDatabaseApi` from `DeepSigma.DataAccess.RelationalDatabase`.
 
+### Easier: inherit from the shipped base classes
+
+If you are building a Dapper-backed relational provider (the common case), don't implement these interfaces from scratch — `DeepSigma.DataAccess.RelationalDatabase` ships `RelationalConnectionFactoryBase<TConnection>` and `RelationalSchemaServiceBase` that absorb the boilerplate (StateChange wiring, SQL-file lookup, Dapper invocation). Each concrete provider then becomes a 10–15 line shim. See [Building a custom provider](../DeepSigma.DataAccess.RelationalDatabase/README.md#building-a-custom-provider) in the RelationalDatabase README for a full MySQL walkthrough.
+
+Implement the raw interfaces directly only when your provider is **not** Dapper- or ADO.NET-backed (e.g. a thin REST gateway, an in-memory mock, a different connection abstraction).
+
 ## Versioning
 
 This package is foundational — most other packages in the family depend on it. Breaking changes to these interfaces or models cascade across every provider, so they are made conservatively.

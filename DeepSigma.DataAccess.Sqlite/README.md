@@ -62,6 +62,7 @@ This registers (as singletons):
 - `IDbConnectionFactory` → `SqliteConnectionFactory`
 - `RelationalDatabaseApi`
 - `IDatabaseSchemaService` → `SqliteSchemaService`
+- `MigrationRunner` — pre-wired with the SQLite-flavoured `_migrations` DDL (see [Migrations](#migrations) below)
 
 If you also register the SQL Server or Postgres extension in the same container, both will compete for the `IDbConnectionFactory` and `IDatabaseSchemaService` registrations — register only one provider per service collection, or use keyed services (`AddKeyedSingleton(...)`).
 
@@ -132,7 +133,51 @@ For maximum throughput, also consider:
 - `PRAGMA synchronous = NORMAL;` (per-connection; trades a tiny durability window for substantial speed)
 - `PRAGMA temp_store = MEMORY;` (per-connection)
 
-Set these via `db.UpdateAsync("PRAGMA journal_mode = WAL;")` after opening the database.
+Set these via `db.ExecuteAsync("PRAGMA journal_mode = WAL;")` after opening the database, or — for per-connection settings (`synchronous`, `foreign_keys`, `busy_timeout`) — via the connection-open hook:
+
+```csharp
+services.AddDeepSigmaSqlite("Data Source=app.db", onConnectionOpened: conn =>
+{
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "PRAGMA foreign_keys = ON;" +
+                      "PRAGMA synchronous = NORMAL;" +
+                      "PRAGMA busy_timeout = 5000;";
+    cmd.ExecuteNonQuery();
+});
+```
+
+The callback fires every time `Dapper` opens a fresh connection from the pool, so per-connection PRAGMAs are applied consistently. Persistent settings (`journal_mode = WAL`) only need a one-time `ExecuteAsync` call at startup — they live in the database file.
+
+## Migrations
+
+`AddDeepSigmaSqlite` auto-registers a `MigrationRunner` pre-wired with the SQLite DDL for the `_migrations` tracking table:
+
+```sql
+CREATE TABLE IF NOT EXISTS _migrations (Id TEXT NOT NULL PRIMARY KEY, AppliedAtUtc TEXT NOT NULL);
+```
+
+Resolve it from DI and hand it an ordered list of `Migration` records:
+
+```csharp
+using DeepSigma.DataAccess.RelationalDatabase;
+
+public class Schema(MigrationRunner runner)
+{
+    private static readonly Migration[] All =
+    [
+        new("20260101_001", "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);"),
+        new("20260108_002", "ALTER TABLE users ADD COLUMN email TEXT;"),
+        new("20260115_003", "CREATE INDEX users_email_idx ON users (email);"),
+    ];
+
+    // Apply at startup. Already-applied ids are skipped silently.
+    public Task<IReadOnlyList<string>> EnsureLatestAsync(CancellationToken ct) => runner.ApplyAsync(All, ct);
+}
+```
+
+Each migration runs in its own transaction along with the `_migrations` insert, so a failure rolls back cleanly with no partial state. SQLite is dynamically typed, so the tracking table's `AppliedAtUtc` is stored as ISO-8601 text — read it back as a `DateTime` via Dapper. See the [RelationalDatabase README](../DeepSigma.DataAccess.RelationalDatabase/README.md#migrations) for behaviour details and design notes.
+
+For test-only scenarios where you want full reset between runs, use a fresh shared-memory connection string per test (see [In-memory for unit tests](#in-memory-for-unit-tests)) — the `_migrations` table is created from scratch every time.
 
 ## Health checks
 

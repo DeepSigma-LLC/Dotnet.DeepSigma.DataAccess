@@ -19,6 +19,14 @@ dotnet add package DeepSigma.DataAccess.RelationalDatabase
 
 ## What it provides
 
+| Type | Purpose |
+|---|---|
+| `RelationalDatabaseApi` | Dapper-backed CRUD, streaming, scalar, and transaction helpers — the main thing you'll call. |
+| `RelationalDatabaseTransactionScope` | Returned by `BeginTransactionAsync`; mirrors the CRUD surface and threads the transaction through every call. |
+| `MigrationRunner` + `Migration` record | Idempotent schema migrations against the `_migrations` tracking table. Auto-registered by every provider's `AddDeepSigma*` extension. |
+| `RelationalConnectionFactoryBase<TConnection>` | Public base for custom `IDbConnectionFactory` implementations — handles the per-connection-opened callback wiring. See [Building a custom provider](#building-a-custom-provider). |
+| `RelationalSchemaServiceBase` | Public base for custom `IDatabaseSchemaService` implementations — handles the SQL-file lookup and Dapper invocation. |
+
 ### `RelationalDatabaseApi`
 
 A small Dapper wrapper that takes an `IDbConnectionFactory` and exposes async helpers for the common CRUD shapes. The factory is injected at construction so the same class works against any relational provider — SQL Server, Postgres, or anything else that implements `IDbConnectionFactory`.
@@ -37,6 +45,9 @@ A small Dapper wrapper that takes an `IDbConnectionFactory` and exposes async he
 | `UpdateAsync(sql, [timeout])` | `int` | Execute a non-query SQL statement (parameterless UPDATE / DELETE / DDL). Returns affected row count (may be `-1` for DDL on some providers). |
 | `UpdateAsync<TParam>(sql, parameters, [timeout])` | `int` | Same with a parameter object. |
 | `UpdateAllAsync<TParam>(sql, parameters, [timeout])` | `int` | Execute the SQL once per parameter set; returns the total number of rows affected across all sets. |
+| `ExecuteAsync(sql, [timeout])` | `int` | **Preferred** general-purpose non-query executor (Dapper convention). Identical behaviour to `UpdateAsync` but reads naturally for `DELETE`, `INSERT … ON CONFLICT`, DDL, etc. |
+| `ExecuteAsync<TParam>(sql, parameters, [timeout])` | `int` | Same with a parameter object. |
+| `ExecuteAllAsync<TParam>(sql, parameters, [timeout])` | `int` | Same as `UpdateAllAsync` — preferred name for non-UPDATE batches. |
 | `ExecuteScalarAsync<T>(sql, [timeout])` | `T?` | Execute SQL and return the first column of the first row as `T`. Typical use: `SELECT COUNT(*)`, `SELECT MAX(...)`, single-value lookups. |
 | `ExecuteScalarAsync<TParam, T>(sql, parameters, [timeout])` | `T?` | Same with a parameter object. |
 | `QueryStreamAsync<T>(sql, [timeout])` | `IAsyncEnumerable<T>` | Stream rows lazily via `Dapper.QueryUnbufferedAsync` — connection stays open until enumeration ends. |
@@ -173,6 +184,133 @@ await using var tx = await db.BeginTransactionAsync(IsolationLevel.Serializable,
 ```
 
 The scope mirrors the full method surface of `RelationalDatabaseApi` — `GetAllAsync`, `GetByIdAsync`, `QueryFirstOrDefaultAsync`, `QuerySingleOrDefaultAsync`, `InsertAsync` / `InsertAllAsync`, `UpdateAsync` / `UpdateAllAsync`, `ExecuteScalarAsync`, plus `CommitAsync`. All scope methods accept the same `commandTimeout`, `commandType`, and `CancellationToken` parameters. There is no streaming method inside a transaction scope — `QueryStreamAsync` only exists on the top-level API.
+
+## Migrations
+
+`MigrationRunner` applies an ordered list of `Migration`s once each, tracking applied ids in a `_migrations` table so subsequent runs are no-ops. It is **deliberately tiny** — no naming conventions, no file scanning, no "down" scripts, no embedded-resource discovery. You supply an ordered `IEnumerable<Migration>` from wherever makes sense for your project (a static array, a directory of `.sql` files you read at startup, etc.) and the runner makes them idempotent.
+
+```csharp
+public sealed record Migration(string Id, string Sql, string? Description = null);
+```
+
+```csharp
+// Resolved from DI (registered automatically by every provider's AddDeepSigma* extension)
+public class StartupMigrations(MigrationRunner runner)
+{
+    private static readonly Migration[] All =
+    [
+        new("20260101_001", "CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);"),
+        new("20260108_002", "ALTER TABLE users ADD COLUMN email TEXT;", "back-fill nullable"),
+        new("20260115_003", "CREATE INDEX users_email_idx ON users (email);"),
+    ];
+
+    public Task ApplyAsync(CancellationToken ct) => runner.ApplyAsync(All, ct);
+}
+```
+
+### Behaviour
+
+- Creates the `_migrations` tracking table on first call (provider-specific DDL is supplied by the registering DI extension). The DDL uses `CREATE TABLE IF NOT EXISTS` / equivalent so the call is safe to repeat.
+- Reads the set of already-applied ids in a single query.
+- For each migration whose id is **not** in that set, opens a transaction, runs the migration SQL, inserts the id into `_migrations`, and commits. A failing migration rolls back both the SQL and the tracking row, leaving no partial state.
+- Returns the list of newly-applied ids (in run order).
+- Already-applied ids are skipped silently (Debug-level log entry).
+
+### Tracking table schema
+
+| Column | Type (varies by provider) | Purpose |
+|---|---|---|
+| `Id` | `TEXT` / `NVARCHAR(255)` — primary key | The migration id you supplied. |
+| `AppliedAtUtc` | `TEXT` / `TIMESTAMPTZ` / `DATETIME2` | UTC timestamp when the migration ran. |
+
+You can read this table directly if you need to introspect what's been applied:
+
+```csharp
+IEnumerable<(string Id, DateTime AppliedAtUtc)> history = await db.GetAllAsync<(string, DateTime)>(
+    "SELECT Id, AppliedAtUtc FROM _migrations ORDER BY AppliedAtUtc");
+```
+
+### Design notes
+
+- **No "down" migrations.** Reversible migrations are nice in theory and a footgun in practice. If you need to back out a change, write a forward migration that does so.
+- **No file-system / assembly scanning.** Discovery is the consumer's job — it's a `for` loop. Centralising it would force opinions about layout, naming, and ordering that aren't this library's call.
+- **Run order = enumeration order.** Sort your list (or use a sorted-on-disk filename convention) before passing it in.
+- **Provider DDL is supplied at registration.** The runner itself only knows portable SQL. Each provider's `AddDeepSigma*` DI extension wires in the right `CREATE TABLE IF NOT EXISTS` flavour.
+
+## Building a custom provider
+
+The shipped providers (`SqlServer`, `Postgres`, `Sqlite`) cover the common cases, but if you need MySQL, Oracle, DuckDB, or another ADO.NET-compatible engine, this package provides two public base classes you can extend. The shipped providers themselves are built on top of these, so the path is identical.
+
+### `RelationalConnectionFactoryBase<TConnection>`
+
+Handles the per-connection-opened callback wiring (the `StateChange` event), so subclasses only declare the connection type and how to construct one:
+
+```csharp
+using DeepSigma.DataAccess.RelationalDatabase;
+using MySqlConnector;          // hypothetical MySQL driver
+
+public sealed class MySqlConnectionFactory : RelationalConnectionFactoryBase<MySqlConnection>
+{
+    private readonly string _connectionString;
+
+    public MySqlConnectionFactory(string connectionString, Action<MySqlConnection>? onConnectionOpened = null)
+        : base(onConnectionOpened)
+    {
+        _connectionString = connectionString;
+    }
+
+    protected override MySqlConnection CreateConnectionCore() => new(_connectionString);
+}
+```
+
+That's the whole factory. The base class implements `IDbConnectionFactory.Create()` and invokes `onConnectionOpened` every time a connection transitions to `Open`. The generic constraint is `TConnection : DbConnection`, which all ADO.NET providers satisfy.
+
+### `RelationalSchemaServiceBase`
+
+Wires the four `IDatabaseSchemaService` methods to packaged `.sql` files. Subclasses only supply a file-name prefix; the base resolves `{AppDomain.BaseDirectory}/SQL/{prefix}_TableNames.sql` (and the three siblings) and runs them through `RelationalDatabaseApi`.
+
+```csharp
+using DeepSigma.DataAccess.Abstraction;
+using DeepSigma.DataAccess.RelationalDatabase;
+using Microsoft.Extensions.Logging;
+
+public sealed class MySqlSchemaService : RelationalSchemaServiceBase
+{
+    public MySqlSchemaService(string connectionString, ILogger<MySqlSchemaService>? logger = null)
+        : this(new MySqlConnectionFactory(connectionString), logger) { }
+
+    public MySqlSchemaService(IDbConnectionFactory factory, ILogger<MySqlSchemaService>? logger = null)
+        : base(factory, filePrefix: "MySql", logger) { }
+}
+```
+
+Add four `.sql` files to your project (`MySql_TableNames.sql`, `MySql_TableAndFieldInfo.sql`, `MySql_Constraints.sql`, `MySql_ForeignKeyConstraints.sql`) returning rows shaped like the `Table*` models in `DeepSigma.DataAccess.Abstraction`. Set `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>` on each so they end up in `{output}/SQL/`. The packaged `.sql` files in the three shipped providers are a good starting reference.
+
+### Wire it into DI
+
+A custom `AddDeepSigmaMySql` extension follows the same shape as the shipped ones, including auto-registering `MigrationRunner` with a MySQL-flavoured DDL:
+
+```csharp
+public static class DeepSigmaMySqlServiceCollectionExtensions
+{
+    internal const string CreateMigrationsTableSql =
+        "CREATE TABLE IF NOT EXISTS _migrations (Id VARCHAR(255) NOT NULL PRIMARY KEY, AppliedAtUtc DATETIME(6) NOT NULL);";
+
+    public static IServiceCollection AddDeepSigmaMySql(
+        this IServiceCollection services,
+        string connectionString,
+        Action<MySqlConnection>? onConnectionOpened = null)
+    {
+        services.AddSingleton<IDbConnectionFactory>(_ => new MySqlConnectionFactory(connectionString, onConnectionOpened));
+        services.AddSingleton<RelationalDatabaseApi>();
+        services.AddSingleton<IDatabaseSchemaService, MySqlSchemaService>();
+        services.AddSingleton(sp => ActivatorUtilities.CreateInstance<MigrationRunner>(sp, CreateMigrationsTableSql));
+        return services;
+    }
+}
+```
+
+That's it — your provider now plugs into `RelationalDatabaseApi`, `MigrationRunner`, transactions, health-check patterns, and any consumer code that takes `IDbConnectionFactory` / `IDatabaseSchemaService` / `RelationalDatabaseApi`.
 
 ## Swapping providers
 

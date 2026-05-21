@@ -126,6 +126,30 @@ public sealed class RelationalDatabaseTransactionScope : IAsyncDisposable
         return await _connection.ExecuteAsync(cmd);
     }
 
+    /// <summary>Executes a non-query SQL statement within the transaction. Returns the affected row count. Preferred over <c>UpdateAsync</c> for DELETEs, DDL, and other non-UPDATE statements.</summary>
+    public async Task<int> ExecuteAsync(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] ExecuteAsync");
+        var cmd = new CommandDefinition(sql, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>Executes a non-query SQL statement with parameters within the transaction. Returns the affected row count.</summary>
+    public async Task<int> ExecuteAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] ExecuteAsync<TParam>");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>Executes SQL once per parameter set within the transaction. Returns total rows affected.</summary>
+    public async Task<int> ExecuteAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("[TX] ExecuteAllAsync");
+        var cmd = new CommandDefinition(sql, parameters, transaction: _transaction, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await _connection.ExecuteAsync(cmd);
+    }
+
     /// <summary>Executes a SQL command and returns the first column of the first row as <typeparamref name="T"/>, within the transaction.</summary>
     public async Task<T?> ExecuteScalarAsync<T>(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {

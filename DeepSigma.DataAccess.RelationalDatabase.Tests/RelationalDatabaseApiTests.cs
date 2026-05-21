@@ -3,14 +3,20 @@ using Xunit;
 
 namespace DeepSigma.DataAccess.RelationalDatabase.Tests;
 
-public class RelationalDatabaseApiTests : IClassFixture<SqliteTestHarness>
+public class RelationalDatabaseApiTests : IDisposable
 {
+    private readonly SqliteTestHarness _harness;
     private readonly RelationalDatabaseApi _db;
 
-    public RelationalDatabaseApiTests(SqliteTestHarness harness)
+    public RelationalDatabaseApiTests()
     {
-        _db = new RelationalDatabaseApi(harness.Factory);
+        // Per-test harness — each test gets its own isolated shared-memory database seeded
+        // with the same 3 rows, so mutating tests can't pollute read-only ones.
+        _harness = new SqliteTestHarness();
+        _db = new RelationalDatabaseApi(_harness.Factory);
     }
+
+    public void Dispose() => _harness.Dispose();
 
     private sealed record Item
     {

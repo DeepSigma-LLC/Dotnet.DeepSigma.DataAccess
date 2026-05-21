@@ -18,6 +18,7 @@ public class SqliteHealthCheckTests : IClassFixture<SqliteSharedMemoryFixture>
     public async Task Reports_Healthy_when_database_is_reachable()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddHealthChecks().AddDeepSigmaSqlite(_fixture.ConnectionString);
 
         using var provider = services.BuildServiceProvider();
@@ -35,6 +36,7 @@ public class SqliteHealthCheckTests : IClassFixture<SqliteSharedMemoryFixture>
         const string badConnectionString = "garbage=does;not;parse";
 
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddHealthChecks().AddDeepSigmaSqlite(badConnectionString);
 
         using var provider = services.BuildServiceProvider();

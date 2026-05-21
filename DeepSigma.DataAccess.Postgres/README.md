@@ -22,11 +22,32 @@ This transitively pulls in `DeepSigma.DataAccess.Abstraction`, `DeepSigma.DataAc
 
 ### `PostgresConnectionFactory`
 
-Implements `IDbConnectionFactory` by returning new `NpgsqlConnection` instances bound to the supplied connection string.
+Implements `IDbConnectionFactory` by returning `NpgsqlConnection` instances drawn from a long-lived `NpgsqlDataSource` — the modern Npgsql 7+ idiom. The data source owns connection pooling, type-mapping configuration, password rotation, and per-source logging.
 
 ```csharp
 IDbConnectionFactory factory = new PostgresConnectionFactory(
     "Host=localhost;Database=appdb;Username=postgres;Password=postgres");
+```
+
+Two construction patterns are available:
+
+| Constructor | Ownership | Use when |
+|---|---|---|
+| `new PostgresConnectionFactory(connectionString, [onOpened])` | Factory builds and **owns** the `NpgsqlDataSource`. Disposing the factory disposes the data source. | The common case — you just want a working factory. |
+| `new PostgresConnectionFactory(dataSource, [onOpened])` | Caller retains ownership. | You built the data source yourself (with `NpgsqlDataSourceBuilder` for custom type handlers, enum/composite mapping, password providers, etc.) and want full control over its lifetime. |
+| `new PostgresConnectionFactory(dataSource, ownsDataSource: true, [onOpened])` | Explicit ownership flag. | Advanced: you built the data source inside a factory method that has no other owner (e.g. a DI lambda) and want the factory to dispose it. |
+
+The factory implements `IDisposable`; when it owns the data source it forwards `Dispose()` to `NpgsqlDataSource.Dispose()`.
+
+The optional `onConnectionOpened` callback is invoked every time a connection transitions to `Open`. Use it for per-connection `SET` statements:
+
+```csharp
+var factory = new PostgresConnectionFactory(connectionString, onConnectionOpened: conn =>
+{
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SET search_path = analytics, public; SET statement_timeout = '30s';";
+    cmd.ExecuteNonQuery();
+});
 ```
 
 ### `PostgresSchemaService`
@@ -79,6 +100,30 @@ This registers (as singletons):
 - `RelationalDatabaseApi`
 - `IDatabaseSchemaService` → `PostgresSchemaService`
 - `PostgresBulkCopier`
+- `MigrationRunner` — pre-wired with the Postgres-flavoured `_migrations` DDL (see [Migrations](#migrations) below)
+
+Two optional callbacks customise the registration:
+
+```csharp
+services.AddDeepSigmaPostgres(
+    connectionString,
+    configureDataSource: builder =>
+    {
+        // Customise the NpgsqlDataSourceBuilder — type handlers, enum / composite mapping,
+        // password providers, per-source logging, etc.
+        builder.MapEnum<OrderStatus>("order_status");
+        builder.EnableDynamicJson();
+    },
+    onConnectionOpened: conn =>
+    {
+        // Runs every time a connection transitions to Open — for per-connection SET statements.
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SET search_path = analytics, public;";
+        cmd.ExecuteNonQuery();
+    });
+```
+
+When `configureDataSource` is supplied, the DI lambda builds the `NpgsqlDataSource` and the factory takes ownership — disposal flows back through the DI container.
 
 Consume them via constructor injection:
 
@@ -172,6 +217,36 @@ Rows are streamed via Npgsql's binary importer — the full sequence is **not** 
 ### When *not* to use
 
 If your workload is "user submits a form, we insert 1–5 rows", stick with `RelationalDatabaseApi.InsertAsync` / `InsertAllAsync`. You get per-row results, generated IDs, and trigger firing for free, with imperceptible latency at small row counts.
+
+## Migrations
+
+`AddDeepSigmaPostgres` auto-registers a `MigrationRunner` pre-wired with the Postgres DDL for the `_migrations` tracking table:
+
+```sql
+CREATE TABLE IF NOT EXISTS _migrations (Id TEXT NOT NULL PRIMARY KEY, AppliedAtUtc TIMESTAMPTZ NOT NULL);
+```
+
+Resolve it from DI and hand it an ordered list of `Migration` records:
+
+```csharp
+using DeepSigma.DataAccess.RelationalDatabase;
+
+public class Schema(MigrationRunner runner)
+{
+    private static readonly Migration[] All =
+    [
+        new("20260101_001", "CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);"),
+        new("20260108_002", "ALTER TABLE users ADD COLUMN email TEXT;"),
+        new("20260115_003", "CREATE INDEX users_email_idx ON users (email);"),
+    ];
+
+    public Task<IReadOnlyList<string>> EnsureLatestAsync(CancellationToken ct) => runner.ApplyAsync(All, ct);
+}
+```
+
+Each migration runs in its own transaction along with the bookkeeping `INSERT` into `_migrations`, so a failure rolls back cleanly with no partial state. Re-running with the same list is a no-op — already-applied ids are skipped silently.
+
+See the [RelationalDatabase README](../DeepSigma.DataAccess.RelationalDatabase/README.md#migrations) for design rationale and the full method contract.
 
 ## Health checks
 

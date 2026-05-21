@@ -61,4 +61,16 @@ public class DependencyInjectionTests
 
         Assert.NotNull(bulk);
     }
+
+    [Fact]
+    public void AddDeepSigmaSqlServer_resolves_MigrationRunner()
+    {
+        var services = new ServiceCollection();
+        services.AddDeepSigmaSqlServer(DummyConnectionString);
+        using var provider = services.BuildServiceProvider();
+
+        var runner = provider.GetRequiredService<MigrationRunner>();
+
+        Assert.NotNull(runner);
+    }
 }

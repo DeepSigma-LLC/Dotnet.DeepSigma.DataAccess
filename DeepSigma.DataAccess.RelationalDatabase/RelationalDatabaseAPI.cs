@@ -13,7 +13,7 @@ namespace DeepSigma.DataAccess.RelationalDatabase;
 /// querying, inserting, updating, executing SQL commands, streaming results, and running transactions.
 /// The underlying provider is supplied by an <see cref="IDbConnectionFactory"/>.
 /// </summary>
-public class RelationalDatabaseApi
+public sealed class RelationalDatabaseApi
 {
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ILogger<RelationalDatabaseApi> _logger;
@@ -141,6 +141,11 @@ public class RelationalDatabaseApi
     /// Suitable for parameterless UPDATEs, DELETEs, or DDL such as <c>CREATE TABLE</c> / <c>ALTER TABLE</c>.
     /// (Note: many providers report <c>-1</c> rows-affected for DDL — the value is meaningful for DML only.)
     /// </summary>
+    /// <remarks>
+    /// <see cref="ExecuteAsync(string, int?, System.Data.CommandType?, CancellationToken)"/> is the preferred
+    /// name for new code (matches Dapper convention). <c>UpdateAsync</c> remains for back-compatibility and
+    /// reads naturally for actual UPDATE statements.
+    /// </remarks>
     public async Task<int> UpdateAsync(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("UpdateAsync executing");
@@ -152,6 +157,10 @@ public class RelationalDatabaseApi
     /// <summary>
     /// Executes an UPDATE statement with parameters and returns the number of affected rows.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ExecuteAsync{TParam}(string, TParam, int?, System.Data.CommandType?, CancellationToken)"/>
+    /// is the preferred name for new code; <c>UpdateAsync</c> remains for back-compatibility.
+    /// </remarks>
     public async Task<int> UpdateAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("UpdateAsync<TParam> executing");
@@ -163,9 +172,48 @@ public class RelationalDatabaseApi
     /// <summary>
     /// Executes the SQL once per parameter set and returns the total number of rows affected across all sets.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ExecuteAllAsync{TParam}(string, IEnumerable{TParam}, int?, System.Data.CommandType?, CancellationToken)"/>
+    /// is the preferred name for new code; <c>UpdateAllAsync</c> remains for back-compatibility.
+    /// </remarks>
     public async Task<int> UpdateAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("UpdateAllAsync executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>
+    /// Executes a non-query SQL statement and returns the number of affected rows.
+    /// Preferred general-purpose non-query executor — matches Dapper's <c>ExecuteAsync</c> convention.
+    /// Use for <c>DELETE</c>, <c>INSERT … ON CONFLICT</c>, DDL, or any other statement where you don't need a return value beyond row count.
+    /// </summary>
+    public async Task<int> ExecuteAsync(string sql, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("ExecuteAsync executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>
+    /// Executes a non-query SQL statement with parameters and returns the number of affected rows.
+    /// </summary>
+    public async Task<int> ExecuteAsync<TParam>(string sql, TParam parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("ExecuteAsync<TParam> executing");
+        using IDbConnection connection = _connectionFactory.Create();
+        var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
+        return await connection.ExecuteAsync(cmd);
+    }
+
+    /// <summary>
+    /// Executes the SQL once per parameter set and returns the total number of rows affected across all sets.
+    /// </summary>
+    public async Task<int> ExecuteAllAsync<TParam>(string sql, IEnumerable<TParam> parameters, int? commandTimeout = null, CommandType? commandType = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("ExecuteAllAsync executing");
         using IDbConnection connection = _connectionFactory.Create();
         var cmd = new CommandDefinition(sql, parameters, commandTimeout: commandTimeout, commandType: commandType, cancellationToken: cancellationToken);
         return await connection.ExecuteAsync(cmd);

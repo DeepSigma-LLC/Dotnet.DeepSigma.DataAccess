@@ -29,6 +29,17 @@ IDbConnectionFactory factory = new SqlServerConnectionFactory(
     "Server=localhost;Database=AppDb;Integrated Security=True;TrustServerCertificate=True;");
 ```
 
+An optional `onConnectionOpened` callback is invoked every time a connection transitions to `Open`. Use it for per-connection `SET` statements:
+
+```csharp
+var factory = new SqlServerConnectionFactory(connectionString, onConnectionOpened: conn =>
+{
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "SET ANSI_NULLS ON; SET ARITHABORT ON; SET LOCK_TIMEOUT 5000;";
+    cmd.ExecuteNonQuery();
+});
+```
+
 ### `SqlServerSchemaService`
 
 Implements `IDatabaseSchemaService` by executing packaged SQL files against `INFORMATION_SCHEMA`. Constructor overloads accept either a connection string (convenience) or a pre-built `IDbConnectionFactory` (more flexible).
@@ -79,6 +90,7 @@ This registers (as singletons):
 - `RelationalDatabaseApi`
 - `IDatabaseSchemaService` → `SqlServerSchemaService`
 - `SqlServerBulkCopier`
+- `MigrationRunner` — pre-wired with the SQL Server-flavoured `_migrations` DDL (see [Migrations](#migrations) below)
 
 Consume them via constructor injection:
 
@@ -173,6 +185,44 @@ Rows are streamed via an internal `ObjectDataReader<T>` adapter — the full seq
 ### When *not* to use
 
 If your workload is "user submits a form, we insert 1–5 rows", stick with `RelationalDatabaseApi.InsertAsync` / `InsertAllAsync`. You get per-row results, generated IDs, and trigger firing for free, with imperceptible latency at small row counts.
+
+## Migrations
+
+`AddDeepSigmaSqlServer` auto-registers a `MigrationRunner` pre-wired with the SQL Server DDL for the `_migrations` tracking table:
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE type = 'U' AND name = '_migrations')
+BEGIN
+    CREATE TABLE _migrations (
+        Id NVARCHAR(255) NOT NULL PRIMARY KEY,
+        AppliedAtUtc DATETIME2 NOT NULL
+    );
+END
+```
+
+Resolve it from DI and hand it an ordered list of `Migration` records:
+
+```csharp
+using DeepSigma.DataAccess.RelationalDatabase;
+
+public class Schema(MigrationRunner runner)
+{
+    private static readonly Migration[] All =
+    [
+        new("20260101_001", "CREATE TABLE Users (Id INT IDENTITY(1,1) PRIMARY KEY, Name NVARCHAR(255) NOT NULL);"),
+        new("20260108_002", "ALTER TABLE Users ADD Email NVARCHAR(320) NULL;"),
+        new("20260115_003", "CREATE INDEX IX_Users_Email ON Users (Email);"),
+    ];
+
+    public Task<IReadOnlyList<string>> EnsureLatestAsync(CancellationToken ct) => runner.ApplyAsync(All, ct);
+}
+```
+
+Each migration runs in its own transaction along with the bookkeeping `INSERT` into `_migrations`, so a failure rolls back cleanly with no partial state. Re-running with the same list is a no-op — already-applied ids are skipped silently.
+
+SQL Server's `GO` batch separator is **not** supported (it's a `sqlcmd` directive, not T-SQL). Split multi-statement migrations into separate `Migration` records — that also gives you fine-grained tracking and the ability to add a description per change.
+
+See the [RelationalDatabase README](../DeepSigma.DataAccess.RelationalDatabase/README.md#migrations) for design rationale and the full method contract.
 
 ## Health checks
 
