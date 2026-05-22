@@ -15,20 +15,35 @@ namespace DeepSigma.DataAccess.Redis;
 /// </remarks>
 public class RedisCacheApi
 {
-    private readonly string _redisConnectionString;
     private readonly string _redisInstanceName;
     private readonly IDatabase _database;
     private readonly ILogger<RedisCacheApi> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="RedisCacheApi"/>.
+    /// Initializes a new instance of <see cref="RedisCacheApi"/>. Opens a fresh
+    /// <see cref="ConnectionMultiplexer"/> for the supplied connection string —
+    /// when multiple Redis consumers in the same process need to share a
+    /// connection, prefer the <see cref="RedisConnection"/>-accepting overload.
     /// </summary>
     public RedisCacheApi(string redisConnectionString, string redisInstanceName, ILogger<RedisCacheApi>? logger = null)
     {
-        _redisConnectionString = redisConnectionString;
         _redisInstanceName = redisInstanceName;
-        IConnectionMultiplexer connection = ConnectionMultiplexer.Connect(_redisConnectionString);
+        IConnectionMultiplexer connection = ConnectionMultiplexer.Connect(redisConnectionString);
         _database = connection.GetDatabase();
+        _logger = logger ?? NullLogger<RedisCacheApi>.Instance;
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="RedisCacheApi"/> over an existing
+    /// <see cref="RedisConnection"/>. Use this overload when other consumers
+    /// (e.g. RediSearch <c>FT.*</c> command issuers) need to share the same
+    /// underlying <see cref="IConnectionMultiplexer"/>.
+    /// </summary>
+    public RedisCacheApi(RedisConnection connection, string redisInstanceName, ILogger<RedisCacheApi>? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        _redisInstanceName = redisInstanceName;
+        _database = connection.Database;
         _logger = logger ?? NullLogger<RedisCacheApi>.Instance;
     }
 
