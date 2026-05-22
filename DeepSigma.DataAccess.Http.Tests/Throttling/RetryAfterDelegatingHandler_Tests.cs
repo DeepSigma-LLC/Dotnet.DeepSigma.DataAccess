@@ -181,6 +181,81 @@ public class RetryAfterDelegatingHandler_Tests
     }
 
     [Fact]
+    public async Task PostWithBody_RetriesSuccessfully_BodyIsResent()
+    {
+        // Verify the body content survives a retry — the original behavior (re-using the same
+        // HttpRequestMessage instance) would throw "content has already been sent" on attempt 2.
+        var inner = QueuedResponder(
+            Status(HttpStatusCode.ServiceUnavailable, new RetryConditionHeaderValue(TimeSpan.FromMilliseconds(1))),
+            Status(HttpStatusCode.OK));
+
+        // Record the actual bytes seen by the inner handler so we can confirm the body
+        // arrived intact on the retry.
+        var bodiesSeen = new List<string>();
+        var recordingInner = new StubHttpMessageHandler
+        {
+            Responder = async (req, ct) =>
+            {
+                if (req.Content is not null)
+                {
+                    bodiesSeen.Add(await req.Content.ReadAsStringAsync(ct));
+                }
+                return inner.Responder!(req, ct).Result;
+            },
+        };
+
+        var clock = new FakeTimeProvider();
+        var client = BuildClient(new RetryAfterOptions { MaxAttempts = 2 }, clock, recordingInner);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com")
+        {
+            Content = new StringContent("hello world"),
+        };
+
+        var sendTask = client.SendAsync(request, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var response = await sendTask;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, bodiesSeen.Count);
+        Assert.Equal("hello world", bodiesSeen[0]);
+        Assert.Equal("hello world", bodiesSeen[1]);  // body survived the retry
+    }
+
+    [Fact]
+    public async Task PostWithBody_HeadersPreservedAcrossRetries()
+    {
+        var inner = QueuedResponder(
+            Status(HttpStatusCode.ServiceUnavailable, new RetryConditionHeaderValue(TimeSpan.FromMilliseconds(1))),
+            Status(HttpStatusCode.OK));
+
+        var headersSeen = new List<string?>();
+        var recordingInner = new StubHttpMessageHandler
+        {
+            Responder = (req, ct) =>
+            {
+                headersSeen.Add(req.Headers.TryGetValues("X-Custom", out var values) ? string.Join(",", values) : null);
+                return inner.Responder!(req, ct);
+            },
+        };
+
+        var clock = new FakeTimeProvider();
+        var client = BuildClient(new RetryAfterOptions { MaxAttempts = 2 }, clock, recordingInner);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com");
+        request.Headers.Add("X-Custom", "custom-value");
+        request.Content = new StringContent("body");
+
+        var sendTask = client.SendAsync(request, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await sendTask;
+
+        Assert.Equal(2, headersSeen.Count);
+        Assert.Equal("custom-value", headersSeen[0]);
+        Assert.Equal("custom-value", headersSeen[1]);
+    }
+
+    [Fact]
     public void Constructor_RejectsZeroMaxAttempts()
     {
         Assert.Throws<ArgumentException>(() =>

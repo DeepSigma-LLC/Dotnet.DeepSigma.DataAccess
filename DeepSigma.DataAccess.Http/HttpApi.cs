@@ -63,37 +63,47 @@ public class HttpApi
     /// <summary>
     /// Fetches raw JSON from the URL as a string.
     /// </summary>
-    public async Task<string?> GetJsonResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("HTTP GET (JSON) {Url}, timeout {Timeout}s", urlEndpoint, timeoutInSeconds);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
-
-        using var response = await _http.GetAsync(urlEndpoint, cts.Token);
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadAsStringAsync(cts.Token);
-    }
+    public Task<string?> GetJsonResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
+        => FetchStringAsync(urlEndpoint, "JSON", timeoutInSeconds, validator: null, cancellationToken);
 
     /// <summary>
     /// Fetches CSV data from the URL as a string, validating the Content-Type.
     /// </summary>
-    public async Task<string?> GetCsvDataAsync(string urlEndpoint, int timeoutSeconds = 15, CancellationToken cancellationToken = default)
+    public Task<string?> GetCsvDataAsync(string urlEndpoint, int timeoutSeconds = 15, CancellationToken cancellationToken = default)
+        => FetchStringAsync(urlEndpoint, "CSV", timeoutSeconds, validator: RequireCsvContentType, cancellationToken);
+
+    private static void RequireCsvContentType(HttpResponseMessage response, string body)
     {
-        _logger.LogDebug("HTTP GET (CSV) {Url}, timeout {Timeout}s", urlEndpoint, timeoutSeconds);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
-
-        using var resp = await _http.GetAsync(urlEndpoint, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-        resp.EnsureSuccessStatusCode();
-
-        var text = await resp.Content.ReadAsStringAsync(cts.Token);
-
-        if (!resp.Content.Headers.ContentType?.MediaType?.Contains("csv", StringComparison.OrdinalIgnoreCase) ?? true)
+        if (!response.Content.Headers.ContentType?.MediaType?.Contains("csv", StringComparison.OrdinalIgnoreCase) ?? true)
         {
-            throw new InvalidOperationException($"Non-CSV response: {text}");
+            throw new InvalidOperationException($"Non-CSV response: {body}");
         }
-        return text;
+    }
+
+    /// <summary>
+    /// Shared fetch-as-string scaffold: linked-CTS, per-call timeout, response-headers-read mode,
+    /// status-success enforcement, optional content-type validation.
+    /// </summary>
+    private async Task<string?> FetchStringAsync(
+        string urlEndpoint,
+        string kind,
+        int timeoutInSeconds,
+        Action<HttpResponseMessage, string>? validator,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("HTTP GET ({Kind}) {Url}, timeout {Timeout}s", kind, urlEndpoint, timeoutInSeconds);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
+
+        using HttpResponseMessage response = await _http
+            .GetAsync(urlEndpoint, HttpCompletionOption.ResponseHeadersRead, cts.Token)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        string body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+        validator?.Invoke(response, body);
+        return body;
     }
 
     /// <summary>
@@ -149,19 +159,13 @@ public class HttpApi
     }
 
     /// <summary>
-    /// Fetches raw XML from the URL as a string.
+    /// Fetches raw XML from the URL as a string. Does not validate Content-Type — XML responses
+    /// arrive with a wide variety of media types (<c>application/xml</c>, <c>text/xml</c>,
+    /// <c>application/atom+xml</c>, <c>application/rss+xml</c>, etc.), and strict validation
+    /// causes more friction than it prevents.
     /// </summary>
-    public async Task<string?> GetXmlResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("HTTP GET (XML) {Url}, timeout {Timeout}s", urlEndpoint, timeoutInSeconds);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
-
-        using var response = await _http.GetAsync(urlEndpoint, cts.Token).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
-    }
+    public Task<string?> GetXmlResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
+        => FetchStringAsync(urlEndpoint, "XML", timeoutInSeconds, validator: null, cancellationToken);
 
     /// <summary>
     /// Streams elements matching <paramref name="elementName"/> from a large XML response, yielding
