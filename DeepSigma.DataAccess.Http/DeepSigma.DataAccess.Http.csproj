@@ -7,13 +7,13 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>DeepSigma.DataAccess.Http</Title>
     <Authors>DeepSigma LLC</Authors>
-    <Description>HTTP/JSON/CSV API access helpers for DeepSigma applications.</Description>
-    <PackageDescription>HTTP/JSON/CSV API access helpers for DeepSigma applications.</PackageDescription>
+    <Description>HTTP API access helpers for DeepSigma applications: JSON/CSV/XML read and write verbs, streaming downloads, and throttle/retry handlers.</Description>
+    <PackageDescription>HTTP API access helpers for DeepSigma applications: JSON/CSV/XML read and write verbs, streaming downloads, and throttle/retry handlers.</PackageDescription>
     <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess.Http</PackageId>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>1.2.0.0</Version>
+    <Version>1.3.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Http</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>

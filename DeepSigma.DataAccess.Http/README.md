@@ -2,7 +2,7 @@
 
 HTTP helpers for building polite, throttled API clients on top of `HttpClient`. Two layers:
 
-1. **`HttpApi`** — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads, plus streaming binary downloads and streaming large XML element-by-element.
+1. **`HttpApi`** — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads; sending **`POST`/`PUT`/`PATCH`/`DELETE`** with JSON or form bodies; streaming binary downloads; and streaming large XML element-by-element. A `SendAsync` escape hatch covers anything the typed helpers don't.
 2. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions.
 
 This package is **independent** of the relational stack and intended for consumption by API-specific data-access libraries (e.g. `DeepSigma.DataAccess.ArXiv`, `DeepSigma.AlphaVantage`).
@@ -25,9 +25,9 @@ Uses `System.Net.Http.HttpClient` and `System.Text.Json` from the BCL — no ext
 
 ## What it provides
 
-An instance class `HttpApi` with helpers for JSON, CSV, XML, raw-string, streaming-XML, and binary downloads, plus pure static deserializers that don't need an `HttpClient`. On top of that, two reusable `DelegatingHandler`s and `IHttpClientBuilder` extensions to compose them.
+An instance class `HttpApi` with helpers for JSON, CSV, XML, raw-string, streaming-XML, and binary downloads, write verbs (`POST`/`PUT`/`PATCH`/`DELETE`), and a full-control `SendAsync` escape hatch — plus pure static deserializers that don't need an `HttpClient`. On top of that, two reusable `DelegatingHandler`s and `IHttpClientBuilder` extensions to compose them.
 
-### Instance methods (require an `HttpClient` via constructor)
+### Read methods — `GET` (require an `HttpClient` via constructor)
 
 | Method | Behaviour |
 |---|---|
@@ -41,6 +41,28 @@ An instance class `HttpApi` with helpers for JSON, CSV, XML, raw-string, streami
 | `DownloadToStreamAsync(url, destination, bufferSize = 81_920, cancellationToken = default)` | `GET`s the URL and copies the response body into `destination`. Suitable for binary downloads or any large payload. |
 | `DownloadToFileAsync(url, destinationPath, cancellationToken = default)` | Convenience wrapper that writes to a file path, creating the destination's directory if needed. |
 
+### Write methods — `POST`/`PUT`/`PATCH`/`DELETE`
+
+All share the read methods' semantics: per-call timeout via linked `CancellationTokenSource`, `EnsureSuccessStatusCode`, and an optional `apiResultLoggingMethod` that receives the raw response body before deserialisation. Outgoing JSON bodies are serialised with the same `JsonSerializerOptions` used for reading (see below).
+
+| Method | Behaviour |
+|---|---|
+| `PostJsonAsync<TRequest, TResponse>(url, body, timeoutInSeconds = 15, apiResultLoggingMethod = null, cancellationToken = default)` | Serialises `body` as JSON, `POST`s it, deserialises the JSON response into `TResponse`. |
+| `PostJsonAsync<TRequest>(url, body, timeoutInSeconds = 15, cancellationToken = default)` | Same, but returns the raw response body as a string instead of deserialising. |
+| `PostFormAsync<TResponse>(url, fields, timeoutInSeconds = 15, apiResultLoggingMethod = null, cancellationToken = default)` | `POST`s `fields` as `application/x-www-form-urlencoded` (common for OAuth token endpoints), deserialises the JSON response into `TResponse`. |
+| `PutJsonAsync<TRequest, TResponse>(url, body, timeoutInSeconds = 15, apiResultLoggingMethod = null, cancellationToken = default)` | `PUT` analogue of `PostJsonAsync<TRequest, TResponse>`. |
+| `PatchJsonAsync<TRequest, TResponse>(url, body, timeoutInSeconds = 15, apiResultLoggingMethod = null, cancellationToken = default)` | `PATCH` analogue of `PostJsonAsync<TRequest, TResponse>`. |
+| `DeleteAsync(url, timeoutInSeconds = 15, apiResultLoggingMethod = null, cancellationToken = default)` | `DELETE`s the URL; returns the raw response body string (often empty). Throws on non-success status. |
+| `PostJsonToStreamAsync<TRequest>(url, body, destination, bufferSize = 81_920, cancellationToken = default)` | `POST`s a JSON body and streams the response into `destination` without buffering. For binary or large responses. |
+| `PutJsonToStreamAsync<TRequest>(url, body, destination, bufferSize = 81_920, cancellationToken = default)` | `PUT` analogue of `PostJsonToStreamAsync`. |
+
+### Escape hatch — full request control
+
+| Method | Behaviour |
+|---|---|
+| `SendAsync(request, timeoutInSeconds = 15, validator = null, cancellationToken = default)` | Sends a caller-built `HttpRequestMessage` (custom headers, multipart, non-JSON bodies), applies the per-call timeout and status check, runs the optional `validator`, and returns the response body string. The request is disposed. |
+| `SendToStreamAsync(request, destination, bufferSize = 81_920, cancellationToken = default)` | Same, but streams the response body into `destination`. |
+
 ### Static helpers (pure — no `HttpClient` needed)
 
 | Method | Behaviour |
@@ -49,10 +71,12 @@ An instance class `HttpApi` with helpers for JSON, CSV, XML, raw-string, streami
 | `HttpApi.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
 | `HttpApi.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
 
-JSON deserialisation uses these `JsonSerializerOptions`:
+JSON serialisation (outgoing request bodies) and deserialisation (responses) share one `JsonSerializerOptions` instance:
 
 - `NumberHandling = AllowReadingFromString` — accepts numeric values quoted as strings.
 - `PropertyNameCaseInsensitive = true` — matches camelCase JSON to PascalCase properties without `[JsonPropertyName]` attributes.
+
+Note that `PropertyNameCaseInsensitive` affects *reading* only; outgoing bodies are written with your property names as-is (PascalCase unless you apply `[JsonPropertyName]`). If a target API requires camelCase request bodies, annotate your request types or build the request yourself and send it via `SendAsync`.
 
 ## Dependency-injection registration
 
@@ -184,6 +208,75 @@ await http.DownloadToFileAsync("https://example.com/large.zip", "./out/payload.b
 ```
 
 Both stream the response body in 80 KB chunks (configurable) and never buffer the whole payload in memory.
+
+## Quick start: POST / PUT / PATCH / DELETE
+
+The write verbs mirror the read helpers — same per-call timeout, status-check, and optional logging callback — and serialise the request body as JSON for you:
+
+```csharp
+public sealed record CreateUserRequest(string Name, int Age);
+public sealed record UserResponse(string Id, string Name);
+
+// POST a JSON body, get the deserialized response back:
+UserResponse? created = await http.PostJsonAsync<CreateUserRequest, UserResponse>(
+    "https://api.example.com/users",
+    new CreateUserRequest("Ada", 37));
+
+// PUT / PATCH follow the same shape:
+await http.PutJsonAsync<CreateUserRequest, UserResponse>($"users/{id}", updated);
+await http.PatchJsonAsync<CreateUserRequest, UserResponse>($"users/{id}", patch);
+
+// DELETE returns the raw response body (often empty); throws on non-2xx:
+string? body = await http.DeleteAsync($"users/{id}");
+```
+
+Form-encoded bodies (the usual shape for OAuth token endpoints):
+
+```csharp
+public sealed record TokenResponse(string Access_Token, int Expires_In);
+
+TokenResponse? token = await http.PostFormAsync<TokenResponse>(
+    "https://auth.example.com/oauth/token",
+    new[]
+    {
+        new KeyValuePair<string, string>("grant_type", "client_credentials"),
+        new KeyValuePair<string, string>("client_id", clientId),
+        new KeyValuePair<string, string>("client_secret", clientSecret),
+    });
+```
+
+Capture the raw response upstream for logging or caching — every typed write method accepts `apiResultLoggingMethod`, invoked with the raw body *before* deserialisation (the same hook the `GET` helpers expose):
+
+```csharp
+UserResponse? created = await http.PostJsonAsync<CreateUserRequest, UserResponse>(
+    "users", request,
+    apiResultLoggingMethod: raw => _logger.LogDebug("POST /users -> {Body}", raw));
+```
+
+## Quick start: full request control (`SendAsync`)
+
+When the typed helpers don't fit — custom per-request headers, multipart uploads, non-JSON bodies, or an unusual verb — build the `HttpRequestMessage` yourself and hand it to `SendAsync`. You still get the per-call timeout, status enforcement, and an optional response validator:
+
+```csharp
+using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.example.com/upload")
+{
+    Content = new MultipartFormDataContent
+    {
+        { new ByteArrayContent(bytes), "file", "report.pdf" },
+    },
+};
+request.Headers.Add("X-Idempotency-Key", idempotencyKey);
+
+string? body = await http.SendAsync(
+    request,
+    validator: (response, raw) =>
+    {
+        if (response.Headers.Location is null)
+            throw new InvalidOperationException($"Expected a Location header: {raw}");
+    });
+```
+
+`SendToStreamAsync(request, destination)` is the streaming counterpart for large or binary responses. Both dispose the request for you.
 
 ---
 
@@ -333,7 +426,9 @@ Tests run in milliseconds — no real waiting.
 
 - **Rate-limit detection.** `LoadFromJson` throws `InvalidOperationException` if the root JSON object contains a `Note` or `Error Message` property. This pattern is used by financial-data providers (e.g. Alpha Vantage) to surface throttling responses with HTTP 200. If your target API does not follow that convention, this check is harmless — those properties simply won't appear.
 - **HttpClient lifetime.** When you register via `AddDeepSigmaHttp()`, `IHttpClientFactory` manages the underlying `HttpClient` (handler pooling, DNS rotation, etc.). When you construct `HttpApi` directly, you control the `HttpClient` lifetime yourself — share a long-lived instance across your application rather than constructing one per call.
-- **Per-call timeouts.** Enforced via a linked `CancellationTokenSource` independently of the injected `HttpClient.Timeout`. The factory-managed client's own timeout is ignored.
+- **Per-call timeouts.** Enforced via a linked `CancellationTokenSource` independently of the injected `HttpClient.Timeout`. The factory-managed client's own timeout is ignored. The buffered methods (reads and write verbs) apply this timeout; the streaming methods (`StreamXmlElementsAsync`, `DownloadToStreamAsync`, `*ToStreamAsync`) do not — their duration is caller-bounded via the `CancellationToken`, since a long stream legitimately outlives a 15-second request timeout.
+- **Write-body serialisation.** `PostJsonAsync` / `PutJsonAsync` / `PatchJsonAsync` serialise the request body with the shared `JsonSerializerOptions`. Property names are written as-is — annotate request types with `[JsonPropertyName]` if the API needs camelCase, or use `SendAsync` with a hand-built body.
+- **Request disposal.** `SendAsync` and `SendToStreamAsync` dispose the `HttpRequestMessage` (and its `Content`) you hand them. Don't reuse a request instance across calls — build a fresh one each time, as the typed helpers do internally.
 - **Cancellation.** Every instance method accepts an optional `CancellationToken` and links it with the timeout-driven CTS so either trigger will cancel the request.
 - **CSV content-type check.** `GetCsvDataAsync` validates that the response `Content-Type` contains the substring `"csv"`. If the server returns the data with a generic `text/plain` or `application/octet-stream`, the call will throw — use `GetJsonResponseAsync` + `LoadFromCsv` to bypass the check.
 - **XML deserialization** uses `System.Xml.Serialization.XmlSerializer` via `DeepSigma.Core.Utilities.XMLUtilities`. Decorate your types with `[XmlRoot]`, `[XmlElement]`, `[XmlAttribute]` as needed.
@@ -345,6 +440,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
+| `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`); outgoing JSON bodies now share the single `JsonSerializerOptions` instance used for reading. No changes to existing public signatures. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |
 | `1.0.0` | Initial release. JSON and CSV helpers on `HttpApi`. |

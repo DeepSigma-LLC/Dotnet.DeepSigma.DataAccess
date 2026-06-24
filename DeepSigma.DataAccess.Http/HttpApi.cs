@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepSigma.Core.Utilities;
@@ -24,6 +26,12 @@ public class HttpApi
 {
     private readonly HttpClient _http;
     private readonly ILogger<HttpApi> _logger;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        PropertyNameCaseInsensitive = true,
+    };
 
     /// <summary>
     /// Initializes a new instance of <see cref="HttpApi"/> with the supplied <see cref="HttpClient"/>.
@@ -64,13 +72,13 @@ public class HttpApi
     /// Fetches raw JSON from the URL as a string.
     /// </summary>
     public Task<string?> GetJsonResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
-        => FetchStringAsync(urlEndpoint, "JSON", timeoutInSeconds, validator: null, cancellationToken);
+        => SendForStringAsync(new HttpRequestMessage(HttpMethod.Get, urlEndpoint), "GET JSON", timeoutInSeconds, validator: null, cancellationToken);
 
     /// <summary>
     /// Fetches CSV data from the URL as a string, validating the Content-Type.
     /// </summary>
     public Task<string?> GetCsvDataAsync(string urlEndpoint, int timeoutSeconds = 15, CancellationToken cancellationToken = default)
-        => FetchStringAsync(urlEndpoint, "CSV", timeoutSeconds, validator: RequireCsvContentType, cancellationToken);
+        => SendForStringAsync(new HttpRequestMessage(HttpMethod.Get, urlEndpoint), "GET CSV", timeoutSeconds, validator: RequireCsvContentType, cancellationToken);
 
     private static void RequireCsvContentType(HttpResponseMessage response, string body)
     {
@@ -81,30 +89,67 @@ public class HttpApi
     }
 
     /// <summary>
-    /// Shared fetch-as-string scaffold: linked-CTS, per-call timeout, response-headers-read mode,
-    /// status-success enforcement, optional content-type validation.
+    /// Shared send-as-string scaffold: linked-CTS, per-call timeout, response-headers-read mode,
+    /// status-success enforcement, optional content-type validation. Disposes the request.
     /// </summary>
-    private async Task<string?> FetchStringAsync(
-        string urlEndpoint,
+    private async Task<string?> SendForStringAsync(
+        HttpRequestMessage request,
         string kind,
         int timeoutInSeconds,
         Action<HttpResponseMessage, string>? validator,
         CancellationToken cancellationToken)
     {
-        _logger.LogDebug("HTTP GET ({Kind}) {Url}, timeout {Timeout}s", kind, urlEndpoint, timeoutInSeconds);
+        _logger.LogDebug("HTTP {Kind} {Url}, timeout {Timeout}s", kind, request.RequestUri, timeoutInSeconds);
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
+        using (request)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
 
-        using HttpResponseMessage response = await _http
-            .GetAsync(urlEndpoint, HttpCompletionOption.ResponseHeadersRead, cts.Token)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+            using HttpResponseMessage response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
 
-        string body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
-        validator?.Invoke(response, body);
-        return body;
+            string body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+            validator?.Invoke(response, body);
+            return body;
+        }
     }
+
+    /// <summary>
+    /// Shared send-to-stream scaffold for binary or large payloads. No per-call timeout —
+    /// streaming durations are caller-bounded via <paramref name="cancellationToken"/>. Disposes the request.
+    /// </summary>
+    private async Task SendToStreamCoreAsync(
+        HttpRequestMessage request,
+        string kind,
+        Stream destination,
+        int bufferSize,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("HTTP {Kind} {Url}", kind, request.RequestUri);
+
+        using (request)
+        {
+            using HttpResponseMessage response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await source.CopyToAsync(destination, bufferSize, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static StringContent JsonContent<T>(T body)
+    {
+        string json = JsonSerializer.Serialize(body, JsonOptions);
+        return new StringContent(json, Encoding.UTF8, "application/json");
+    }
+
+    private static HttpRequestMessage BuildJsonRequest<T>(HttpMethod method, string url, T body)
+        => new(method, url) { Content = JsonContent(body) };
 
     /// <summary>
     /// Deserializes a JSON string into <typeparamref name="T"/>, surfacing API rate-limit / error payloads as exceptions.
@@ -113,12 +158,6 @@ public class HttpApi
     public static T? LoadFromJson<T>(string jsonText)
     {
         if (string.IsNullOrWhiteSpace(jsonText)) { return default; }
-
-        JsonSerializerOptions opts = new()
-        {
-            NumberHandling = JsonNumberHandling.AllowReadingFromString,
-            PropertyNameCaseInsensitive = true,
-        };
 
         using var doc = JsonDocument.Parse(jsonText);
         var root = doc.RootElement;
@@ -133,7 +172,7 @@ public class HttpApi
             throw new InvalidOperationException($"API error: {err.GetString()}");
         }
 
-        return JsonSerializer.Deserialize<T>(jsonText, opts);
+        return JsonSerializer.Deserialize<T>(jsonText, JsonOptions);
     }
 
     /// <summary>
@@ -165,7 +204,7 @@ public class HttpApi
     /// causes more friction than it prevents.
     /// </summary>
     public Task<string?> GetXmlResponseAsync(string urlEndpoint, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
-        => FetchStringAsync(urlEndpoint, "XML", timeoutInSeconds, validator: null, cancellationToken);
+        => SendForStringAsync(new HttpRequestMessage(HttpMethod.Get, urlEndpoint), "GET XML", timeoutInSeconds, validator: null, cancellationToken);
 
     /// <summary>
     /// Streams elements matching <paramref name="elementName"/> from a large XML response, yielding
@@ -198,19 +237,10 @@ public class HttpApi
     /// Streams a response body into <paramref name="destination"/>. Suitable for binary downloads
     /// or any large payload where buffering the whole body in memory is undesirable.
     /// </summary>
-    public async Task DownloadToStreamAsync(string url, Stream destination, int bufferSize = 81_920, CancellationToken cancellationToken = default)
+    public Task DownloadToStreamAsync(string url, Stream destination, int bufferSize = 81_920, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(destination);
-
-        _logger.LogDebug("HTTP GET (download) {Url}", url);
-
-        using var response = await _http
-            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await source.CopyToAsync(destination, bufferSize, cancellationToken).ConfigureAwait(false);
+        return SendToStreamCoreAsync(new HttpRequestMessage(HttpMethod.Get, url), "GET download", destination, bufferSize, cancellationToken);
     }
 
     /// <summary>
@@ -232,4 +262,152 @@ public class HttpApi
     /// Deserializes an XML string into <typeparamref name="T"/>. Pure helper — does not require an <see cref="HttpClient"/>.
     /// </summary>
     public static T? LoadFromXml<T>(string xmlText) => XMLUtilities.FromString<T>(xmlText);
+
+    /// <summary>
+    /// POSTs <paramref name="body"/> as JSON and deserializes the JSON response into <typeparamref name="TResponse"/>.
+    /// </summary>
+    public async Task<TResponse?> PostJsonAsync<TRequest, TResponse>(
+        string url,
+        TRequest body,
+        int timeoutInSeconds = 15,
+        Action<string?>? apiResultLoggingMethod = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Post, url, body), "POST JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
+        apiResultLoggingMethod?.Invoke(json);
+        if (string.IsNullOrWhiteSpace(json)) { return default; }
+        return LoadFromJson<TResponse>(json);
+    }
+
+    /// <summary>
+    /// POSTs <paramref name="body"/> as JSON; returns the raw response body string.
+    /// </summary>
+    public Task<string?> PostJsonAsync<TRequest>(
+        string url,
+        TRequest body,
+        int timeoutInSeconds = 15,
+        CancellationToken cancellationToken = default)
+        => SendForStringAsync(BuildJsonRequest(HttpMethod.Post, url, body), "POST JSON", timeoutInSeconds, validator: null, cancellationToken);
+
+    /// <summary>
+    /// POSTs <paramref name="fields"/> as <c>application/x-www-form-urlencoded</c> and deserializes the JSON response.
+    /// Common for OAuth token endpoints.
+    /// </summary>
+    public async Task<TResponse?> PostFormAsync<TResponse>(
+        string url,
+        IEnumerable<KeyValuePair<string, string>> fields,
+        int timeoutInSeconds = 15,
+        Action<string?>? apiResultLoggingMethod = null,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(fields) };
+        string? json = await SendForStringAsync(request, "POST form", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
+        apiResultLoggingMethod?.Invoke(json);
+        if (string.IsNullOrWhiteSpace(json)) { return default; }
+        return LoadFromJson<TResponse>(json);
+    }
+
+    /// <summary>
+    /// PUTs <paramref name="body"/> as JSON and deserializes the JSON response into <typeparamref name="TResponse"/>.
+    /// </summary>
+    public async Task<TResponse?> PutJsonAsync<TRequest, TResponse>(
+        string url,
+        TRequest body,
+        int timeoutInSeconds = 15,
+        Action<string?>? apiResultLoggingMethod = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Put, url, body), "PUT JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
+        apiResultLoggingMethod?.Invoke(json);
+        if (string.IsNullOrWhiteSpace(json)) { return default; }
+        return LoadFromJson<TResponse>(json);
+    }
+
+    /// <summary>
+    /// PATCHes <paramref name="body"/> as JSON and deserializes the JSON response into <typeparamref name="TResponse"/>.
+    /// </summary>
+    public async Task<TResponse?> PatchJsonAsync<TRequest, TResponse>(
+        string url,
+        TRequest body,
+        int timeoutInSeconds = 15,
+        Action<string?>? apiResultLoggingMethod = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Patch, url, body), "PATCH JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
+        apiResultLoggingMethod?.Invoke(json);
+        if (string.IsNullOrWhiteSpace(json)) { return default; }
+        return LoadFromJson<TResponse>(json);
+    }
+
+    /// <summary>
+    /// DELETEs <paramref name="url"/>; returns the response body string (often empty). Throws on non-2xx.
+    /// </summary>
+    public async Task<string?> DeleteAsync(
+        string url,
+        int timeoutInSeconds = 15,
+        Action<string?>? apiResultLoggingMethod = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? body = await SendForStringAsync(new HttpRequestMessage(HttpMethod.Delete, url), "DELETE", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
+        apiResultLoggingMethod?.Invoke(body);
+        return body;
+    }
+
+    /// <summary>
+    /// POSTs <paramref name="body"/> as JSON and streams the response body into <paramref name="destination"/>.
+    /// Suitable for binary responses or large payloads where buffering is undesirable.
+    /// </summary>
+    public Task PostJsonToStreamAsync<TRequest>(
+        string url,
+        TRequest body,
+        Stream destination,
+        int bufferSize = 81_920,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        return SendToStreamCoreAsync(BuildJsonRequest(HttpMethod.Post, url, body), "POST JSON stream", destination, bufferSize, cancellationToken);
+    }
+
+    /// <summary>
+    /// PUTs <paramref name="body"/> as JSON and streams the response body into <paramref name="destination"/>.
+    /// </summary>
+    public Task PutJsonToStreamAsync<TRequest>(
+        string url,
+        TRequest body,
+        Stream destination,
+        int bufferSize = 81_920,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        return SendToStreamCoreAsync(BuildJsonRequest(HttpMethod.Put, url, body), "PUT JSON stream", destination, bufferSize, cancellationToken);
+    }
+
+    /// <summary>
+    /// Full-control send for cases the typed helpers don't cover (custom headers, multipart, non-JSON bodies).
+    /// Caller owns <paramref name="request"/>; this adds the linked-CTS timeout, status check, optional validator,
+    /// and returns the response body string. The request is disposed.
+    /// </summary>
+    public Task<string?> SendAsync(
+        HttpRequestMessage request,
+        int timeoutInSeconds = 15,
+        Action<HttpResponseMessage, string>? validator = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return SendForStringAsync(request, $"SEND {request.Method.Method}", timeoutInSeconds, validator, cancellationToken);
+    }
+
+    /// <summary>
+    /// Full-control send that streams the response body into <paramref name="destination"/>. The request is disposed.
+    /// </summary>
+    public Task SendToStreamAsync(
+        HttpRequestMessage request,
+        Stream destination,
+        int bufferSize = 81_920,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(destination);
+        return SendToStreamCoreAsync(request, $"SEND {request.Method.Method} stream", destination, bufferSize, cancellationToken);
+    }
 }

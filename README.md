@@ -23,7 +23,7 @@ The 2.x layout splits each storage concern into its own package, with a small sh
 | [DeepSigma.DataAccess.Cosmos](DeepSigma.DataAccess.Cosmos/README.md) | Azure Cosmos DB helpers for databases, containers, items, and throughput. | Microsoft.Azure.Cosmos, DeepSigma.Core |
 | [DeepSigma.DataAccess.Redis](DeepSigma.DataAccess.Redis/README.md) | Redis cache get/set/remove helpers. | StackExchange.Redis, Newtonsoft.Json |
 | [DeepSigma.DataAccess.AzureBlobStorage](DeepSigma.DataAccess.AzureBlobStorage/README.md) | Azure Blob Storage upload, download, delete, and list. | Azure.Storage.Blobs |
-| [DeepSigma.DataAccess.Http](DeepSigma.DataAccess.Http/README.md) | Helpers for fetching and deserializing JSON / CSV API payloads. | DeepSigma.DataAccess.CsvUtilities |
+| [DeepSigma.DataAccess.Http](DeepSigma.DataAccess.Http/README.md) | Helpers for JSON / CSV / XML API access — read (`GET`) and write (`POST`/`PUT`/`PATCH`/`DELETE`) verbs, streaming downloads, plus throttle/retry `DelegatingHandler`s. | DeepSigma.DataAccess.CsvUtilities |
 
 ## Dependency graph
 
