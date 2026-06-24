@@ -12,8 +12,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace DeepSigma.DataAccess.Http;
 
 /// <summary>
-/// Instance API for interacting with web APIs: fetching JSON and CSV payloads,
-/// deserializing JSON responses, and surfacing rate-limit / error payloads as exceptions.
+/// Instance API for interacting with web APIs: reading JSON, CSV, and XML payloads;
+/// writing JSON / form bodies via POST/PUT/PATCH/DELETE; streaming downloads and large XML;
+/// deserializing responses; and surfacing rate-limit / error payloads as exceptions.
 /// </summary>
 /// <remarks>
 /// Takes an <see cref="HttpClient"/> via constructor injection. Register with

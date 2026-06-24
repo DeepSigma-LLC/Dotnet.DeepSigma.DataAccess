@@ -43,7 +43,7 @@ An instance class `HttpApi` with helpers for JSON, CSV, XML, raw-string, streami
 
 ### Write methods — `POST`/`PUT`/`PATCH`/`DELETE`
 
-All share the read methods' semantics: per-call timeout via linked `CancellationTokenSource`, `EnsureSuccessStatusCode`, and an optional `apiResultLoggingMethod` that receives the raw response body before deserialisation. Outgoing JSON bodies are serialised with the same `JsonSerializerOptions` used for reading (see below).
+All share the read methods' semantics: per-call timeout via linked `CancellationTokenSource`, `EnsureSuccessStatusCode`, and an optional `apiResultLoggingMethod` that receives the raw response body before deserialisation. Outgoing JSON bodies are serialised with the instance's configured `JsonSerializerOptions` (see [JSON serialization options](#json-serialization-options)).
 
 | Method | Behaviour |
 |---|---|
@@ -67,16 +67,39 @@ All share the read methods' semantics: per-call timeout via linked `Cancellation
 
 | Method | Behaviour |
 |---|---|
-| `HttpApi.LoadFromJson<T>(jsonText)` | Deserialises JSON text into `T`. Throws on the presence of `Note` or `Error Message` properties (a common rate-limit pattern). |
+| `HttpApi.LoadFromJson<T>(jsonText, options = null)` | Deserialises JSON text into `T`. Throws on the presence of `Note` or `Error Message` properties (a common rate-limit pattern). Uses `DefaultJsonOptions` when `options` is omitted. |
 | `HttpApi.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
 | `HttpApi.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
 
-JSON serialisation (outgoing request bodies) and deserialisation (responses) share one `JsonSerializerOptions` instance:
+## JSON serialization options
 
-- `NumberHandling = AllowReadingFromString` — accepts numeric values quoted as strings.
-- `PropertyNameCaseInsensitive = true` — matches camelCase JSON to PascalCase properties without `[JsonPropertyName]` attributes.
+Each `HttpApi` instance carries one `JsonSerializerOptions` used for **both** outgoing request bodies and incoming response deserialisation. Two presets ship as static properties, and you can supply your own:
 
-Note that `PropertyNameCaseInsensitive` affects *reading* only; outgoing bodies are written with your property names as-is (PascalCase unless you apply `[JsonPropertyName]`). If a target API requires camelCase request bodies, annotate your request types or build the request yourself and send it via `SendAsync`.
+| Preset | Behaviour |
+|---|---|
+| `HttpApi.DefaultJsonOptions` | `NumberHandling = AllowReadingFromString` (accepts numbers quoted as strings) and `PropertyNameCaseInsensitive = true` (matches camelCase JSON onto PascalCase properties on read). Property names go on the wire **as-is** — PascalCase unless you apply `[JsonPropertyName]`. This is the default when you don't pass options. |
+| `HttpApi.SnakeCaseJsonOptions` | The same, plus `PropertyNamingPolicy` / `DictionaryKeyPolicy = SnakeCaseLower` — PascalCase C# properties are written as `snake_case` on the wire and read case-insensitively. Use for Python / FastAPI-style APIs. |
+
+Select per instance via the constructor's third argument:
+
+```csharp
+// Default options:
+var http = new HttpApi(new HttpClient());
+
+// snake_case API:
+var snake = new HttpApi(new HttpClient(), jsonOptions: HttpApi.SnakeCaseJsonOptions);
+
+// Fully custom (e.g. camelCase request bodies):
+var camel = new HttpApi(new HttpClient(), jsonOptions: new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true,
+});
+```
+
+The static `LoadFromJson<T>` helper takes the same options as an optional argument and falls back to `DefaultJsonOptions`. For one-off requests that need a different shape than the instance default, build the request yourself and send it via `SendAsync`.
+
+> **DI note:** `AddDeepSigmaHttp()` activates `HttpApi` through `IHttpClientFactory`, which uses `DefaultJsonOptions`. To register an instance with a different preset, add your own typed-client registration that passes `jsonOptions` to the constructor.
 
 ## Dependency-injection registration
 
@@ -427,7 +450,7 @@ Tests run in milliseconds — no real waiting.
 - **Rate-limit detection.** `LoadFromJson` throws `InvalidOperationException` if the root JSON object contains a `Note` or `Error Message` property. This pattern is used by financial-data providers (e.g. Alpha Vantage) to surface throttling responses with HTTP 200. If your target API does not follow that convention, this check is harmless — those properties simply won't appear.
 - **HttpClient lifetime.** When you register via `AddDeepSigmaHttp()`, `IHttpClientFactory` manages the underlying `HttpClient` (handler pooling, DNS rotation, etc.). When you construct `HttpApi` directly, you control the `HttpClient` lifetime yourself — share a long-lived instance across your application rather than constructing one per call.
 - **Per-call timeouts.** Enforced via a linked `CancellationTokenSource` independently of the injected `HttpClient.Timeout`. The factory-managed client's own timeout is ignored. The buffered methods (reads and write verbs) apply this timeout; the streaming methods (`StreamXmlElementsAsync`, `DownloadToStreamAsync`, `*ToStreamAsync`) do not — their duration is caller-bounded via the `CancellationToken`, since a long stream legitimately outlives a 15-second request timeout.
-- **Write-body serialisation.** `PostJsonAsync` / `PutJsonAsync` / `PatchJsonAsync` serialise the request body with the shared `JsonSerializerOptions`. Property names are written as-is — annotate request types with `[JsonPropertyName]` if the API needs camelCase, or use `SendAsync` with a hand-built body.
+- **Write-body serialisation.** `PostJsonAsync` / `PutJsonAsync` / `PatchJsonAsync` serialise the request body with the instance's `JsonSerializerOptions`. Pick `DefaultJsonOptions` (PascalCase) or `SnakeCaseJsonOptions` via the constructor, or pass a custom instance — see [JSON serialization options](#json-serialization-options).
 - **Request disposal.** `SendAsync` and `SendToStreamAsync` dispose the `HttpRequestMessage` (and its `Content`) you hand them. Don't reuse a request instance across calls — build a fresh one each time, as the typed helpers do internally.
 - **Cancellation.** Every instance method accepts an optional `CancellationToken` and links it with the timeout-driven CTS so either trigger will cancel the request.
 - **CSV content-type check.** `GetCsvDataAsync` validates that the response `Content-Type` contains the substring `"csv"`. If the server returns the data with a generic `text/plain` or `application/octet-stream`, the call will throw — use `GetJsonResponseAsync` + `LoadFromCsv` to bypass the check.
@@ -440,7 +463,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
-| `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`); outgoing JSON bodies now share the single `JsonSerializerOptions` instance used for reading. No changes to existing public signatures. |
+| `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |
 | `1.0.0` | Initial release. JSON and CSV helpers on `HttpApi`. |
