@@ -1,6 +1,6 @@
 # DeepSigma.DataAccess
 
-A modular family of .NET data-access packages for relational databases, document stores, caches, blob storage, and HTTP APIs. Each storage technology is shipped as its own NuGet package so consumers only pull in the dependencies they actually use.
+A modular family of .NET data-access packages for relational databases, document stores, caches, and HTTP APIs. Each storage technology is shipped as its own NuGet package so consumers only pull in the dependencies they actually use.
 
 This repository contains 10 published packages plus shared abstractions. They target **.NET 10.0** and are MIT-licensed.
 
@@ -22,7 +22,6 @@ The 2.x layout splits each storage concern into its own package, with a small sh
 | [DeepSigma.DataAccess.MongoDB](DeepSigma.DataAccess.MongoDB/README.md) | MongoDB CRUD helpers built around an `IMongoDocument` contract. | MongoDB.Driver |
 | [DeepSigma.DataAccess.Cosmos](DeepSigma.DataAccess.Cosmos/README.md) | Azure Cosmos DB helpers for databases, containers, items, and throughput. | Microsoft.Azure.Cosmos, DeepSigma.Core |
 | [DeepSigma.DataAccess.Redis](DeepSigma.DataAccess.Redis/README.md) | Redis cache get/set/remove helpers. | StackExchange.Redis, Newtonsoft.Json |
-| [DeepSigma.DataAccess.AzureBlobStorage](DeepSigma.DataAccess.AzureBlobStorage/README.md) | Azure Blob Storage upload, download, delete, and list. | Azure.Storage.Blobs |
 | [DeepSigma.DataAccess.Http](DeepSigma.DataAccess.Http/README.md) | Helpers for JSON / CSV / XML API access — read (`GET`) and write (`POST`/`PUT`/`PATCH`/`DELETE`) verbs, streaming downloads, plus throttle/retry `DelegatingHandler`s. | DeepSigma.DataAccess.CsvUtilities |
 
 ## Dependency graph
@@ -39,7 +38,6 @@ The 2.x layout splits each storage concern into its own package, with a small sh
    MongoDB                         |
    Cosmos ─── DeepSigma.Core       |
    Redis                           |
-   AzureBlobStorage                |
    Http ───── DeepSigma.DataAccess.CsvUtilities
 ```
 
@@ -56,7 +54,7 @@ Pick the packages that match the stores you use:
 - "I just want SQL Server schema discovery" → install **DeepSigma.DataAccess.SqlServer**.
 - "I just need Mongo CRUD" → install **DeepSigma.DataAccess.MongoDB**.
 - "I want to unit-test my repository against an in-memory database" → install **DeepSigma.DataAccess.Sqlite** and use `Data Source=:memory:`.
-- "Cosmos + Blob + Redis" → install those three packages independently; no relational dependencies will come along.
+- "Cosmos + Redis" → install those two packages independently; no relational dependencies will come along.
 
 ## Quick start: relational + provider
 
@@ -147,7 +145,6 @@ services.AddHealthChecks()
     .AddDeepSigmaMongoDb(mongoConnStr,               tags: new[] { "readiness" })
     .AddDeepSigmaCosmos(endpointUri, apiKey,         tags: new[] { "readiness" })
     .AddDeepSigmaRedis(redisConnStr,                 tags: new[] { "readiness" })
-    .AddDeepSigmaAzureBlobStorage(blobConnStr, "documents", tags: new[] { "readiness" });
 
 app.MapHealthChecks("/health");
 ```
@@ -172,7 +169,6 @@ Dotnet.DeepSigma.DataAccess/
 ├── DeepSigma.DataAccess.MongoDB/
 ├── DeepSigma.DataAccess.Cosmos/
 ├── DeepSigma.DataAccess.Redis/
-├── DeepSigma.DataAccess.AzureBlobStorage/
 ├── DeepSigma.DataAccess.Http/
 │
 ├── DeepSigma.DataAccess.Abstraction.Tests/
@@ -182,7 +178,6 @@ Dotnet.DeepSigma.DataAccess/
 ├── DeepSigma.DataAccess.Sqlite.Tests/
 ├── DeepSigma.DataAccess.MongoDB.Tests/
 ├── DeepSigma.DataAccess.Cosmos.Tests/
-├── DeepSigma.DataAccess.AzureBlobStorage.Tests/
 └── DeepSigma.DataAccess.Http.Tests/
 ```
 
@@ -201,7 +196,6 @@ Nine xUnit (v3) test projects, one per package. Most are **unit tests** that run
 | `DeepSigma.DataAccess.Postgres.Tests` | Unit + Integration | DI smoke (unit); `MigrationRunner` (integration, requires local PostgreSQL). |
 | `DeepSigma.DataAccess.MongoDB.Tests` | Integration | Requires `mongodb://localhost:27017/`. |
 | `DeepSigma.DataAccess.Cosmos.Tests` | Unit | DI / contract tests. |
-| `DeepSigma.DataAccess.AzureBlobStorage.Tests` | Unit | DI / contract tests. |
 | `DeepSigma.DataAccess.Http.Tests` | Unit | Uses a mock `HttpMessageHandler`. |
 
 ### Run only the unit tests
