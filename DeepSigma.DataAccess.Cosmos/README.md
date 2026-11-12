@@ -28,20 +28,29 @@ Constructed with the endpoint URI, primary key, and an application name (used by
 | `CreateDatabaseAsync(databaseId)` | Create the database if it does not exist. |
 | `CreateContainerAsync(databaseId, containerId, partitionKeyPath, [throughput])` | Create the container if it does not exist. `partitionKeyPath` is passed without a leading slash. |
 | `ScaleContainerAsync(databaseId, containerId, throughputIncrease)` | Adjust the container's manual throughput by the given delta. |
-| `InsertAsync<T>(databaseId, containerId, item, idProperty, partitionKeyProperty)` | Read-then-create. Throws if a document with the same id+partition already exists. |
+| `InsertAsync<T>(databaseId, containerId, item, idProperty, partitionKeyProperty)` | Create an item; returns `CosmosInsertResult<T>`. |
 | `QueryItemsAsync<T>(databaseId, containerId, sqlQueryText)` | Run a Cosmos SQL query and materialise all pages. |
-| `UpdateItemAsync<T>(databaseId, containerId, newItem, idProperty, partitionKeyProperty)` | Read-then-replace. Throws if the document does not exist. |
-| `DeleteItemAsync<T>(databaseId, containerId, id, partitionKeyValue)` | Delete a single item by id and partition-key value. |
+| `UpdateItemAsync<T>(databaseId, containerId, newItem, idProperty, partitionKeyProperty)` | Replace an item; returns `CosmosUpdateResult<T>`. |
+| `DeleteItemAsync<T>(databaseId, containerId, id, partitionKeyValue)` | Delete an item; returns `CosmosDeleteResult`. |
 | `DeleteDatabaseAndCleanupAsync(databaseId)` | Drop the entire database. |
 
 The `idProperty` and `partitionKeyProperty` parameters are `Expression<Func<T, dynamic>>` selectors. They are resolved at runtime via `DeepSigma.Core.Utilities.ObjectUtilities.GetPropertyValue`, so you pick the properties statically:
 
 ```csharp
-await cosmos.InsertAsync(
+using DeepSigma.DataAccess.Cosmos.Results;
+
+CosmosInsertResult<DataRequest> result = await cosmos.InsertAsync(
     "AppDb", "Requests",
     new DataRequest { Id = "abc", TenantId = "t-1" },
     idProperty: x => x.Id,
     partitionKeyProperty: x => x.TenantId);
+
+DataRequest created = result switch
+{
+    CosmosCreated<DataRequest> success => success.Item,
+    CosmosConflict conflict => throw new InvalidOperationException("Insert conflicted", conflict.Exception),
+    null => throw new InvalidOperationException("Uninitialized insert result"),
+};
 ```
 
 ## Dependency-injection registration
@@ -61,8 +70,9 @@ Registers `CosmosDbApi` as a singleton. Because `CosmosDbApi` implements `IDispo
 
 ```csharp
 using DeepSigma.DataAccess.Cosmos;
+using DeepSigma.DataAccess.Cosmos.Results;
 
-var cosmos = new CosmosDbApi(
+using var cosmos = new CosmosDbApi(
     endpointUri: "<your endpoint>",
     apiKey:      "<your primary key>",
     appName:     "MyApp");
@@ -80,7 +90,13 @@ public sealed class DataRequest
 }
 
 var item = new DataRequest { Id = Guid.NewGuid().ToString(), TenantId = "tenant-1", Name = "First" };
-await cosmos.InsertAsync("AppDb", "Requests", item, x => x.Id, x => x.TenantId);
+CosmosInsertResult<DataRequest> insert = await cosmos.InsertAsync("AppDb", "Requests", item, x => x.Id, x => x.TenantId);
+item = insert switch
+{
+    CosmosCreated<DataRequest> created => created.Item,
+    CosmosConflict conflict => throw new InvalidOperationException("Insert conflicted", conflict.Exception),
+    null => throw new InvalidOperationException("Uninitialized insert result"),
+};
 
 // 3. Query
 List<DataRequest> matches = await cosmos.QueryItemsAsync<DataRequest>(
@@ -89,8 +105,33 @@ List<DataRequest> matches = await cosmos.QueryItemsAsync<DataRequest>(
 
 // 4. Update
 item.Name = "Renamed";
-await cosmos.UpdateItemAsync("AppDb", "Requests", item, x => x.Id, x => x.TenantId);
+CosmosUpdateResult<DataRequest> update = await cosmos.UpdateItemAsync("AppDb", "Requests", item, x => x.Id, x => x.TenantId);
+item = update switch
+{
+    CosmosUpdated<DataRequest> updated => updated.Item,
+    CosmosResourceNotFound missing => throw new InvalidOperationException("Resource not found", missing.Exception),
+    null => throw new InvalidOperationException("Uninitialized update result"),
+};
+
+// 5. Delete
+CosmosDeleteResult delete = await cosmos.DeleteItemAsync<DataRequest>("AppDb", "Requests", item.Id, item.TenantId);
+string deleteMessage = delete switch
+{
+    CosmosDeleted => "Deleted",
+    CosmosResourceNotFound missing => $"Resource not found: {missing.ContainerId}",
+    null => throw new InvalidOperationException("Uninitialized delete result"),
+};
 ```
+
+## Migrating from 2.x
+
+`InsertAsync`, `UpdateItemAsync`, and `DeleteItemAsync` now return unions in `DeepSigma.DataAccess.Cosmos.Results`. Switch on each result: success contains the returned item (or a deletion confirmation), while conflict/not-found contains the database, container, item ID, and original `CosmosException` in `Exception`. Code that previously caught `CosmosDuplicateItemException` or `CosmosItemNotFoundException` must handle these cases instead. The old exception types remain available, but these methods no longer throw them.
+
+**Do not ignore the returned result:** an `await` whose return value is discarded may still compile, but will no longer throw for these expected responses. Switch expressions are checked for missing cases, normally with warnings; configure the relevant warnings as errors if exhaustive handling must be enforced. Generated unions are structs: `default` can contain null, so handle a `null` arm where uninitialized values may reach a switch. Avoid a catch-all arm if you want warnings when cases are added.
+
+Only status 409 for insert and status 404 for update/delete with substatus 0 are mapped. A conflict can have causes other than a duplicate ID, including unique-key or partition-key conflicts; a not-found response can refer to the item or a parent resource. Inspect the original exception and diagnostics before deciding how to respond. Other status/substatus combinations, invalid arguments, SDK failures and cancellation still propagate as exceptions.
+
+References: [Cosmos DB 404 troubleshooting](https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-not-found), [409 troubleshooting](https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-conflict), and [HTTP status codes](https://learn.microsoft.com/en-us/rest/api/cosmos-db/http-status-codes-for-cosmosdb).
 
 ## Notes
 
@@ -105,11 +146,11 @@ await cosmos.UpdateItemAsync("AppDb", "Requests", item, x => x.Id, x => x.Tenant
 
 - **Client lifetime.** `CosmosDbApi` holds a single long-lived `CosmosClient` for the lifetime of the instance (per Microsoft's guidance) and implements `IDisposable`. Dispose the instance when you are done with it, or register it as a singleton in your DI container.
 - **Cancellation.** All methods accept an optional `CancellationToken`. It is forwarded to the underlying Cosmos SDK calls.
-- **Insert semantics.** `InsertAsync` issues a single `CreateItemAsync` call and translates a Cosmos 409 Conflict into `CosmosDuplicateItemException`. No pre-read — race-free.
-- **Update / delete semantics.** `UpdateItemAsync` and `DeleteItemAsync` each issue a single call and translate a Cosmos 404 Not Found into `CosmosItemNotFoundException`. No pre-read — race-free.
+- **Insert semantics.** `InsertAsync` issues a single `CreateItemAsync` call and returns a `CosmosConflict` for a 409 with substatus 0. No pre-read — race-free.
+- **Update / delete semantics.** `UpdateItemAsync` and `DeleteItemAsync` each issue a single call and return a `CosmosResourceNotFound` for a 404 with substatus 0. No pre-read — race-free.
 - **Partition keys.** Both expression-based selectors (`InsertAsync`, `UpdateItemAsync`) and the explicit `object?` parameter (`DeleteItemAsync`) support the full set of Cosmos partition-key types: `string`, `bool`, `double` / `float` / `int` / `long` / `decimal`, or `null` (which maps to `PartitionKey.None`). Unsupported types throw `ArgumentException`.
 - **Throughput scaling** uses `ReadThroughputAsync` / `ReplaceThroughputAsync`. Autoscale containers do not expose manual throughput; `ScaleContainerAsync` will throw `InvalidOperationException` in that case.
-- **Exceptions.** Domain-specific exceptions live in `DeepSigma.DataAccess.Cosmos.Exceptions`: `CosmosDuplicateItemException`, `CosmosItemNotFoundException`. Both wrap the underlying `CosmosException` for diagnostics.
+- **Other errors.** Failures not represented by the result cases propagate as exceptions; see [Migrating from 2.x](#migrating-from-2x).
 
 ## License
 

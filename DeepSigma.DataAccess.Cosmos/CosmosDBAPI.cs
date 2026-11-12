@@ -4,7 +4,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using DeepSigma.Core.Utilities;
-using DeepSigma.DataAccess.Cosmos.Exceptions;
+using DeepSigma.DataAccess.Cosmos.Results;
 
 namespace DeepSigma.DataAccess.Cosmos;
 
@@ -26,8 +26,13 @@ public class CosmosDbApi : IDisposable
     /// Initializes a new instance of <see cref="CosmosDbApi"/> with a long-lived <see cref="CosmosClient"/>.
     /// </summary>
     public CosmosDbApi(string endpointUri, string apiKey, string appName, ILogger<CosmosDbApi>? logger = null)
+        : this(new CosmosClient(endpointUri, apiKey, new CosmosClientOptions { ApplicationName = appName }), logger)
     {
-        _client = new CosmosClient(endpointUri, apiKey, new CosmosClientOptions { ApplicationName = appName });
+    }
+
+    internal CosmosDbApi(CosmosClient client, ILogger<CosmosDbApi>? logger = null)
+    {
+        _client = client;
         _logger = logger ?? NullLogger<CosmosDbApi>.Instance;
     }
 
@@ -71,8 +76,9 @@ public class CosmosDbApi : IDisposable
     /// <summary>
     /// Inserts an item into the container. Single round-trip; race-free.
     /// </summary>
-    /// <exception cref="CosmosDuplicateItemException">Thrown if an item with the same id and partition key already exists.</exception>
-    public async Task<T> InsertAsync<T>(string databaseId, string containerId, T item, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
+    /// <returns>The created item or a Cosmos conflict response.</returns>
+    /// <remarks>Other Cosmos errors and cancellation propagate as exceptions.</remarks>
+    public async Task<CosmosInsertResult<T>> InsertAsync<T>(string databaseId, string containerId, T item, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
     {
         object? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, object>(item, partitionKeyProperty);
         PartitionKey partitionKey = ToPartitionKey(partitionKeyValue);
@@ -81,11 +87,11 @@ public class CosmosDbApi : IDisposable
         try
         {
             ItemResponse<T> createResponse = await container.CreateItemAsync(item, partitionKey, cancellationToken: cancellationToken);
-            return createResponse.Resource;
+            return new CosmosCreated<T>(createResponse.Resource);
         }
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict && ex.SubStatusCode == 0)
         {
-            throw new CosmosDuplicateItemException(containerId, idValue, ex);
+            return new CosmosConflict(databaseId, containerId, idValue, ex);
         }
     }
 
@@ -113,8 +119,9 @@ public class CosmosDbApi : IDisposable
     /// <summary>
     /// Replaces an item in the container. Single round-trip; race-free.
     /// </summary>
-    /// <exception cref="CosmosItemNotFoundException">Thrown if no item with the given id and partition key exists.</exception>
-    public async Task<T> UpdateItemAsync<T>(string databaseId, string containerId, T newItem, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
+    /// <returns>The updated item or a Cosmos resource-not-found response.</returns>
+    /// <remarks>Other Cosmos errors and cancellation propagate as exceptions.</remarks>
+    public async Task<CosmosUpdateResult<T>> UpdateItemAsync<T>(string databaseId, string containerId, T newItem, Expression<Func<T, dynamic>> idProperty, Expression<Func<T, dynamic>> partitionKeyProperty, CancellationToken cancellationToken = default)
     {
         string? idValue = ObjectUtilities.GetPropertyValue<T, string>(newItem, idProperty);
         object? partitionKeyValue = ObjectUtilities.GetPropertyValue<T, object>(newItem, partitionKeyProperty);
@@ -123,11 +130,11 @@ public class CosmosDbApi : IDisposable
         try
         {
             ItemResponse<T> updateResponse = await container.ReplaceItemAsync(newItem, idValue, partitionKey, cancellationToken: cancellationToken);
-            return updateResponse.Resource;
+            return new CosmosUpdated<T>(updateResponse.Resource);
         }
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
         {
-            throw new CosmosItemNotFoundException(containerId, idValue, ex);
+            return new CosmosResourceNotFound(databaseId, containerId, idValue, ex);
         }
     }
 
@@ -139,18 +146,20 @@ public class CosmosDbApi : IDisposable
     /// <param name="id">The document id.</param>
     /// <param name="partitionKeyValue">The partition key value. Supports <c>string</c>, <c>double</c>, <c>bool</c>, or <c>null</c>.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <exception cref="CosmosItemNotFoundException">Thrown if no item with the given id and partition key exists.</exception>
-    public async Task DeleteItemAsync<T>(string databaseId, string containerId, string id, object? partitionKeyValue, CancellationToken cancellationToken = default)
+    /// <returns>Confirmation of deletion or a Cosmos resource-not-found response.</returns>
+    /// <remarks>Other Cosmos errors and cancellation propagate as exceptions.</remarks>
+    public async Task<CosmosDeleteResult> DeleteItemAsync<T>(string databaseId, string containerId, string id, object? partitionKeyValue, CancellationToken cancellationToken = default)
     {
         PartitionKey partitionKey = ToPartitionKey(partitionKeyValue);
         Container container = _client.GetContainer(databaseId, containerId);
         try
         {
             await container.DeleteItemAsync<T>(id, partitionKey, cancellationToken: cancellationToken);
+            return new CosmosDeleted();
         }
-        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.SubStatusCode == 0)
         {
-            throw new CosmosItemNotFoundException(containerId, id, ex);
+            return new CosmosResourceNotFound(databaseId, containerId, id, ex);
         }
     }
 

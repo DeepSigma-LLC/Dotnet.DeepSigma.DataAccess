@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess.Cosmos</PackageId>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>2.0.0.0</Version>
+    <Version>2.1.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Cosmos</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
@@ -24,6 +24,10 @@
   <ItemGroup>
     <None Include="..\Assets\DeepSigma.png" Link="DeepSigma.png" Pack="True" PackagePath="\" />
     <None Include="README.md" Pack="True" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DeepSigma.DataAccess.Cosmos.Tests" />
   </ItemGroup>
 
   <ItemGroup>
