@@ -2,7 +2,7 @@
 
 A modular family of .NET data-access packages for relational databases, document stores, caches, and HTTP APIs. Each storage technology is shipped as its own NuGet package so consumers only pull in the dependencies they actually use.
 
-This repository contains 10 published packages plus shared abstractions. They target **.NET 10.0** and are MIT-licensed.
+This repository contains 10 published packages plus shared abstractions. They target **.NET 11.0** and are MIT-licensed.
 
 ## Why modular packages?
 
@@ -220,7 +220,7 @@ The `MigrationRunner` integration tests honour `DEEPSIGMA_POSTGRES_CONNECTION` a
 
 ## Target framework
 
-All packages target **.NET 10.0**.
+All packages target **.NET 11.0**.
 
 ## License
 
