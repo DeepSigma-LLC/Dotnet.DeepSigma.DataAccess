@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess.Cosmos</PackageId>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>1.1.0.0</Version>
+    <Version>2.0.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Cosmos</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
@@ -27,11 +27,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DeepSigma.Core" Version="1.2.0" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.60.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.8" />
+    <PackageReference Include="DeepSigma.Core" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.64.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="11.0.0" />
   </ItemGroup>
 
 </Project>
