@@ -204,7 +204,7 @@ The project targets `net11.0`, so C# 15 is the default language version. Three f
 ## 5. Suggested sequencing
 
 1. ✅ **Foundation (done):** package renamed to `DeepSigma.DataAccess.Web` (id/assembly/namespaces, v3.0.0); `IHttpApi` extracted and registered in DI; `ReconnectPolicy` extracted into `…Web.Resilience` and consumed by `RetryAfterDelegatingHandler` (behavior unchanged); stale `HttpApi.LoadFrom*` tests/README realigned to `Serializer.*`; all 62 tests green. **Deferred:** physical folder / `.csproj` filename / `.sln` entry still say `…Http` — rename those in a deliberate pass (can disrupt an open VS solution).
-2. **SSE:** `ISseClient` + `SseClient` over `SseParser<T>`, reconnect + `Last-Event-ID`, DI, tests (stub `text/event-stream` handler), README section.
+2. ✅ **SSE (done):** `ISseClient` + `SseClient` over `System.Net.ServerSentEvents.SseParser` (inbox on net11, no package ref), typed + raw `IAsyncEnumerable`, auto-reconnect with `Last-Event-ID` resumption and `retry:`-hint-aware backoff via the shared `ReconnectPolicy`, event-type filter, `AddDeepSigmaSse()` DI; 6 tests (stub `text/event-stream` + `FakeTimeProvider`), README section. Old `ServerSideEventApi` placeholder removed.
 3. **WebSockets:** factory + connection, receive-loop/channel, reconnect + re-subscribe hook, keepalive, DI, tests (in-memory `WebSocket` pair or a loopback `TestServer`), README section.
 4. **Polish:** unified `AddDeepSigmaWeb`, pluggable response guard, changelog + `3.0.0` (new capabilities, interface extraction) release.
 

@@ -32,6 +32,28 @@ public static class DeepSigmaHttpServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers <see cref="SseClient"/> as a typed <see cref="HttpClient"/> consumer via
+    /// <see cref="IHttpClientFactory"/>, and maps <see cref="ISseClient"/> to it. Use the optional
+    /// <paramref name="configureClient"/> callback to set the base address, default headers, etc.
+    /// The same throttle/retry handlers (<see cref="AddMinIntervalThrottle"/>, <see cref="AddRetryAfterPolicy"/>)
+    /// compose onto this client's builder.
+    /// </summary>
+    public static IServiceCollection AddDeepSigmaSse(this IServiceCollection services, Action<HttpClient>? configureClient = null)
+    {
+        if (configureClient is null)
+        {
+            services.AddHttpClient<SseClient>();
+        }
+        else
+        {
+            services.AddHttpClient<SseClient>(configureClient);
+        }
+
+        services.AddTransient<ISseClient>(sp => sp.GetRequiredService<SseClient>());
+        return services;
+    }
+
+    /// <summary>
     /// Adds a process-scoped minimum-interval throttle to this client. All clients sharing the same
     /// <paramref name="key"/> cooperate on spacing; if <paramref name="key"/> is null, the client's
     /// registered name is used.

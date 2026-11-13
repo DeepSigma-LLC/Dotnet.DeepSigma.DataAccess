@@ -3,9 +3,10 @@
 Web-communication clients for DeepSigma applications, built on `HttpClient`. Today:
 
 1. **`HttpApi`** (behind **`IHttpApi`**) — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads; sending **`POST`/`PUT`/`PATCH`/`DELETE`** with JSON or form bodies; streaming binary downloads; and streaming large XML element-by-element. A `SendAsync` escape hatch covers anything the typed helpers don't.
-2. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions, plus a shared `ReconnectPolicy` (capped exponential backoff with jitter) in `DeepSigma.DataAccess.Web.Resilience`.
+2. **`ISseClient`** — Server-Sent Events (`text/event-stream`) consumed as an `IAsyncEnumerable`, with transparent reconnection and `Last-Event-ID` resumption.
+3. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions, plus a shared `ReconnectPolicy` (capped exponential backoff with jitter) in `DeepSigma.DataAccess.Web.Resilience`.
 
-**Server-Sent Events and WebSocket clients are being added** — this package is the home for all three transports.
+**A WebSocket client is being added** — this package is the home for all three transports.
 
 > **Renamed in 3.0.0:** this package was `DeepSigma.DataAccess.Http`. The package id, assembly, and root namespace are now `DeepSigma.DataAccess.Web`. Update `using DeepSigma.DataAccess.Http;` → `using DeepSigma.DataAccess.Web;` (and `.Http.Throttling` → `.Web.Throttling`).
 
@@ -307,6 +308,46 @@ string? body = await http.SendAsync(
 
 ---
 
+## Server-Sent Events (SSE)
+
+`ISseClient` / `SseClient` consume a `text/event-stream` as an `IAsyncEnumerable`, parsing the wire format with the BCL's `System.Net.ServerSentEvents.SseParser`. It adds transparent reconnection on top: when the stream ends or the transport drops, it reconnects (sending `Last-Event-ID` to resume) and spaces attempts with the shared `ReconnectPolicy`, honoring the server's `retry:` hint.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddDeepSigmaSse(c => c.BaseAddress = new Uri("https://api.example.com/"));
+// The throttle/retry handlers compose here too:
+services.AddHttpClient<SseClient>().AddRetryAfterPolicy();
+```
+
+```csharp
+// Typed: each event's JSON data deserialized as T (uses the client's JsonSerializerOptions).
+await foreach (PriceTick tick in sse.SubscribeAsync<PriceTick>("prices/stream", cancellationToken: ct))
+{
+    Console.WriteLine($"{tick.Symbol} {tick.Price}");
+}
+
+// Raw: the full SseItem<string> (data, event type, id, reconnect interval).
+await foreach (var evt in sse.SubscribeAsync("prices/stream", cancellationToken: ct))
+{
+    Console.WriteLine($"[{evt.EventType}] {evt.Data}");
+}
+```
+
+Tune a subscription with `SseSubscribeOptions`:
+
+| Option | Behaviour |
+|---|---|
+| `AutoReconnect` (default `true`) | Reconnect after stream end/fault, resuming from the last event id. `false` completes enumeration when the stream ends. |
+| `Reconnect` | The `ReconnectPolicy` (capped exponential backoff + jitter) spacing attempts. Set `MaxAttempts = int.MaxValue` to reconnect indefinitely. |
+| `LastEventId` | Seed the `Last-Event-ID` header on first connect to resume a prior stream. |
+| `EventTypeFilter` | Yield only events with this `event:` type; others still advance the resume point. |
+| `ConfigureRequest` | Mutate each outgoing request (auth headers, query) — invoked on connect and every reconnect. |
+
+The subscription is long-lived and has **no per-call timeout**; its lifetime is bounded by your `CancellationToken`. The connect phase is still bounded by the underlying `HttpClient.Timeout` (the request uses `ResponseHeadersRead`). Inject a `TimeProvider` into `SseClient` to drive reconnection delays deterministically in tests.
+
+---
+
 ## Rate limiting and retry: `DelegatingHandler`s
 
 Two small handlers ship alongside `HttpApi`. They're generic, hand-rolled (no Polly dep), and composable with `IHttpClientBuilder` chaining.
@@ -467,7 +508,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
-| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). Foundation release for the Server-Sent Events and WebSocket clients landing in subsequent versions. |
+| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. WebSocket client to follow. |
 | `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |
