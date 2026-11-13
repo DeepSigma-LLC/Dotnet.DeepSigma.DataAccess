@@ -14,7 +14,7 @@
     <PackageId>DeepSigma.DataAccess.Web</PackageId>
     <AssemblyName>DeepSigma.DataAccess.Web</AssemblyName>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>3.0.0</Version>
+    <Version>2.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Web</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>

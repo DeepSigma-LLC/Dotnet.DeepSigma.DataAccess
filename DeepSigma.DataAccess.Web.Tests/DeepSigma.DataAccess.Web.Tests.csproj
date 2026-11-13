@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DeepSigma.DataAccess.Http\DeepSigma.DataAccess.Http.csproj" />
+    <ProjectReference Include="..\DeepSigma.DataAccess.Web\DeepSigma.DataAccess.Web.csproj" />
   </ItemGroup>
 
 </Project>
