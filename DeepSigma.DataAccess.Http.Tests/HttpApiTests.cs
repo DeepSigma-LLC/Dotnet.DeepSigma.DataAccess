@@ -27,6 +27,32 @@ public class HttpApiTests
     }
 
     [Fact]
+    public async Task GetDataFromUrlAsync_applies_the_configured_response_guard()
+    {
+        var handler = StubHttpMessageHandler.WithJsonBody("{\"Note\":\"rate limited\"}");
+        var http = new HttpApi(new HttpClient(handler), responseGuard: JsonResponseGuards.AlphaVantage);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => http.GetDataFromUrlAsync<WeatherDto>(
+                "https://example.com/weather",
+                cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Contains("API note", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetDataFromUrlAsync_without_a_guard_ignores_Note_payloads()
+    {
+        var handler = StubHttpMessageHandler.WithJsonBody("{\"Note\":\"rate limited\",\"city\":\"Seattle\"}");
+        var http = new HttpApi(new HttpClient(handler));
+
+        WeatherDto? dto = await http.GetDataFromUrlAsync<WeatherDto>(
+            "https://example.com/weather",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("Seattle", dto!.City);
+    }
+
+    [Fact]
     public async Task GetJsonResponseAsync_throws_on_non_success_status()
     {
         var handler = StubHttpMessageHandler.WithStatus(HttpStatusCode.InternalServerError);

@@ -24,16 +24,20 @@ public class HttpApi : IHttpApi
     private readonly HttpClient _http;
     private readonly ILogger<HttpApi> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly JsonResponseGuard? _responseGuard;
 
     /// <summary>
     /// Initializes a new instance of <see cref="HttpApi"/>. Pass <see cref="Serializer.SnakeCaseJsonOptions"/>
     /// (or any custom <see cref="JsonSerializerOptions"/>) to override <see cref="Serializer.DefaultJsonOptions"/>.
+    /// Supply <paramref name="responseGuard"/> (e.g. <see cref="JsonResponseGuards.AlphaVantage"/>) to turn
+    /// HTTP-200 rate-limit / error payloads into exceptions; by default no such check runs.
     /// </summary>
-    public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null, JsonSerializerOptions? jsonOptions = null)
+    public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null, JsonSerializerOptions? jsonOptions = null, JsonResponseGuard? responseGuard = null)
     {
         _http = httpClient;
         _logger = logger ?? NullLogger<HttpApi>.Instance;
         _jsonOptions = jsonOptions ?? Serializer.DefaultJsonOptions;
+        _responseGuard = responseGuard;
     }
 
     /// <summary>
@@ -46,7 +50,7 @@ public class HttpApi : IHttpApi
         apiResultLoggingMethod?.Invoke(json);
 
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return Serializer.LoadFromJson<T>(json, _jsonOptions);
+        return Serializer.LoadFromJson<T>(json, _jsonOptions, _responseGuard);
     }
 
     /// <summary>
@@ -234,7 +238,7 @@ public class HttpApi : IHttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Post, url, body), "POST JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions, _responseGuard);
     }
 
     /// <summary>
@@ -262,7 +266,7 @@ public class HttpApi : IHttpApi
         string? json = await SendForStringAsync(request, "POST form", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions, _responseGuard);
     }
 
     /// <summary>
@@ -278,7 +282,7 @@ public class HttpApi : IHttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Put, url, body), "PUT JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions, _responseGuard);
     }
 
     /// <summary>
@@ -294,7 +298,7 @@ public class HttpApi : IHttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Patch, url, body), "PATCH JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions, _responseGuard);
     }
 
     /// <summary>

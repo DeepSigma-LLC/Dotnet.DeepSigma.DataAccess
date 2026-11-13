@@ -52,24 +52,19 @@ public static class Serializer
     public static T? LoadFromXml<T>(string xmlText) => XMLUtilities.FromString<T>(xmlText);
 
     /// <summary>
-    /// Deserializes a JSON string into <typeparamref name="T"/>, surfacing API rate-limit / error payloads as exceptions.
+    /// Deserializes a JSON string into <typeparamref name="T"/>. When <paramref name="guard"/> is
+    /// supplied, it inspects the response root first and may throw to surface API-level errors
+    /// (e.g. <see cref="JsonResponseGuards.AlphaVantage"/> for HTTP-200 rate-limit payloads).
     /// Pure helper — does not require an <see cref="HttpClient"/>.
     /// </summary>
-    public static T? LoadFromJson<T>(string jsonText, JsonSerializerOptions? options = null)
+    public static T? LoadFromJson<T>(string jsonText, JsonSerializerOptions? options = null, JsonResponseGuard? guard = null)
     {
         if (string.IsNullOrWhiteSpace(jsonText)) { return default; }
 
-        using var doc = JsonDocument.Parse(jsonText);
-        var root = doc.RootElement;
-
-        if (root.TryGetProperty("Note", out var note))
+        if (guard is not null)
         {
-            throw new InvalidOperationException($"API note: {note.GetString()}");
-        }
-
-        if (root.TryGetProperty("Error Message", out var err))
-        {
-            throw new InvalidOperationException($"API error: {err.GetString()}");
+            using JsonDocument doc = JsonDocument.Parse(jsonText);
+            guard(doc.RootElement);
         }
 
         return JsonSerializer.Deserialize<T>(jsonText, options ?? DefaultJsonOptions);

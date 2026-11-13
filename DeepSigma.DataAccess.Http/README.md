@@ -73,7 +73,7 @@ All share the read methods' semantics: per-call timeout via linked `Cancellation
 
 | Method | Behaviour |
 |---|---|
-| `Serializer.LoadFromJson<T>(jsonText, options = null)` | Deserialises JSON text into `T`. Throws on the presence of `Note` or `Error Message` properties (a common rate-limit pattern). Uses `DefaultJsonOptions` when `options` is omitted. |
+| `Serializer.LoadFromJson<T>(jsonText, options = null, guard = null)` | Deserialises JSON text into `T`. Pass a `JsonResponseGuard` (e.g. `JsonResponseGuards.AlphaVantage`) to turn HTTP-200 rate-limit / error payloads into exceptions; with no guard, none runs. Uses `DefaultJsonOptions` when `options` is omitted. |
 | `Serializer.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
 | `Serializer.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
 
@@ -123,7 +123,19 @@ services.AddDeepSigmaHttp(http =>
 });
 ```
 
-Then inject `HttpApi` into your services:
+Granular registrations exist per transport — `AddDeepSigmaHttp()`, `AddDeepSigmaSse()`, `AddDeepSigmaWebSockets()` — or register them together with the unified entry point:
+
+```csharp
+// All three transports with defaults:
+services.AddDeepSigmaWeb();
+
+// Or select and configure a subset:
+services.AddDeepSigmaWeb(w => w
+    .AddHttp(c => c.BaseAddress = new Uri("https://api.example.com/"))
+    .AddSse());
+```
+
+Then inject `HttpApi` (or `IHttpApi`) into your services:
 
 ```csharp
 public class WeatherService(HttpApi http)
@@ -547,7 +559,7 @@ Tests run in milliseconds — no real waiting.
 
 ## Notes
 
-- **Rate-limit detection.** `LoadFromJson` throws `InvalidOperationException` if the root JSON object contains a `Note` or `Error Message` property. This pattern is used by financial-data providers (e.g. Alpha Vantage) to surface throttling responses with HTTP 200. If your target API does not follow that convention, this check is harmless — those properties simply won't appear.
+- **Rate-limit detection (opt-in).** Supply a `JsonResponseGuard` — either to `Serializer.LoadFromJson` or to the `HttpApi` constructor (`responseGuard:`) — to inspect the response root and throw on API-level errors. `JsonResponseGuards.AlphaVantage` throws `InvalidOperationException` when the root carries a `Note` or `Error Message` property (the HTTP-200 throttle convention used by Alpha Vantage and similar providers). **Changed in 3.0.0:** this check is no longer applied by default — opt in with a guard, or write your own `JsonResponseGuard` for your provider's convention.
 - **HttpClient lifetime.** When you register via `AddDeepSigmaHttp()`, `IHttpClientFactory` manages the underlying `HttpClient` (handler pooling, DNS rotation, etc.). When you construct `HttpApi` directly, you control the `HttpClient` lifetime yourself — share a long-lived instance across your application rather than constructing one per call.
 - **Per-call timeouts.** Enforced via a linked `CancellationTokenSource` independently of the injected `HttpClient.Timeout`. The factory-managed client's own timeout is ignored. The buffered methods (reads and write verbs) apply this timeout; the streaming methods (`StreamXmlElementsAsync`, `DownloadToStreamAsync`, `*ToStreamAsync`) do not — their duration is caller-bounded via the `CancellationToken`, since a long stream legitimately outlives a 15-second request timeout.
 - **Write-body serialisation.** `PostJsonAsync` / `PutJsonAsync` / `PatchJsonAsync` serialise the request body with the instance's `JsonSerializerOptions`. Pick `DefaultJsonOptions` (PascalCase) or `SnakeCaseJsonOptions` via the constructor, or pass a custom instance — see [JSON serialization options](#json-serialization-options).
@@ -563,7 +575,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
-| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. **New WebSocket client** — `IWebSocketConnectionFactory`/`IWebSocketConnection` over `ClientWebSocket`: typed/raw duplex, a reassembled receive stream whose messages are a C# 15 union (`WebSocketMessage`), keep-alive, and auto-reconnect with an `OnReconnected` re-subscribe hook; register with `AddDeepSigmaWebSockets()`. |
+| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. **New WebSocket client** — `IWebSocketConnectionFactory`/`IWebSocketConnection` over `ClientWebSocket`: typed/raw duplex, a reassembled receive stream whose messages are a C# 15 union (`WebSocketMessage`), keep-alive, and auto-reconnect with an `OnReconnected` re-subscribe hook; register with `AddDeepSigmaWebSockets()`. **Unified DI** — `AddDeepSigmaWeb()` registers all three transports (or a selected subset). **Pluggable response guard (breaking)** — the `Note`/`Error Message` rate-limit check is no longer applied by default; opt in with a `JsonResponseGuard` (`JsonResponseGuards.AlphaVantage`) on `Serializer.LoadFromJson` or the `HttpApi` constructor. |
 | `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |

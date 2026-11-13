@@ -70,6 +70,26 @@ public static class DeepSigmaHttpServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the DeepSigma web transports in one call. With no <paramref name="configure"/>, all three
+    /// (<see cref="HttpApi"/>, <see cref="SseClient"/>, and the WebSocket factory) are registered with
+    /// defaults. Pass a callback to select and configure a subset, e.g.
+    /// <c>AddDeepSigmaWeb(w =&gt; w.AddHttp(c =&gt; c.BaseAddress = baseUri).AddSse())</c>.
+    /// </summary>
+    public static IServiceCollection AddDeepSigmaWeb(this IServiceCollection services, Action<DeepSigmaWebBuilder>? configure = null)
+    {
+        var builder = new DeepSigmaWebBuilder(services);
+        if (configure is null)
+        {
+            builder.AddHttp().AddSse().AddWebSockets();
+        }
+        else
+        {
+            configure(builder);
+        }
+        return services;
+    }
+
+    /// <summary>
     /// Adds a process-scoped minimum-interval throttle to this client. All clients sharing the same
     /// <paramref name="key"/> cooperate on spacing; if <paramref name="key"/> is null, the client's
     /// registered name is used.
