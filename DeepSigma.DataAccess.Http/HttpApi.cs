@@ -1,11 +1,7 @@
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using DeepSigma.Core.Utilities;
-using DeepSigma.DataAccess.CsvUtilities.Reading;
-using DeepSigma.DataAccess.CsvUtilities.Results;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -30,37 +26,14 @@ public class HttpApi
     private readonly JsonSerializerOptions _jsonOptions;
 
     /// <summary>
-    /// Default JSON options used for serialization/deserialization: case-insensitive property names
-    /// and tolerant number parsing. PascalCase property names go on the wire as-is.
-    /// </summary>
-    public static JsonSerializerOptions DefaultJsonOptions { get; } = new()
-    {
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        PropertyNameCaseInsensitive = true,
-    };
-
-    /// <summary>
-    /// Preset for talking to APIs that use <c>snake_case</c> field names (e.g. Python / FastAPI services).
-    /// PascalCase C# property names are serialized as <c>snake_case</c> on the wire and accepted
-    /// case-insensitively on read.
-    /// </summary>
-    public static JsonSerializerOptions SnakeCaseJsonOptions { get; } = new()
-    {
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower,
-    };
-
-    /// <summary>
-    /// Initializes a new instance of <see cref="HttpApi"/>. Pass <see cref="SnakeCaseJsonOptions"/>
-    /// (or any custom <see cref="JsonSerializerOptions"/>) to override <see cref="DefaultJsonOptions"/>.
+    /// Initializes a new instance of <see cref="HttpApi"/>. Pass <see cref="Serializer.SnakeCaseJsonOptions"/>
+    /// (or any custom <see cref="JsonSerializerOptions"/>) to override <see cref="Serializer.DefaultJsonOptions"/>.
     /// </summary>
     public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null, JsonSerializerOptions? jsonOptions = null)
     {
         _http = httpClient;
         _logger = logger ?? NullLogger<HttpApi>.Instance;
-        _jsonOptions = jsonOptions ?? DefaultJsonOptions;
+        _jsonOptions = jsonOptions ?? Serializer.DefaultJsonOptions;
     }
 
     /// <summary>
@@ -73,7 +46,7 @@ public class HttpApi
         apiResultLoggingMethod?.Invoke(json);
 
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return LoadFromJson<T>(json, _jsonOptions);
+        return Serializer.LoadFromJson<T>(json, _jsonOptions);
     }
 
     /// <summary>
@@ -86,7 +59,7 @@ public class HttpApi
         apiResultLoggingMethod?.Invoke(csv);
 
         if (string.IsNullOrWhiteSpace(csv)) { return []; }
-        return LoadFromCsv<T>(csv) ?? [];
+        return Serializer.LoadFromCsv<T>(csv) ?? [];
     }
 
     /// <summary>
@@ -172,38 +145,7 @@ public class HttpApi
     private HttpRequestMessage BuildJsonRequest<T>(HttpMethod method, string url, T body)
         => new(method, url) { Content = JsonContent(body) };
 
-    /// <summary>
-    /// Deserializes a JSON string into <typeparamref name="T"/>, surfacing API rate-limit / error payloads as exceptions.
-    /// Pure helper — does not require an <see cref="HttpClient"/>.
-    /// </summary>
-    public static T? LoadFromJson<T>(string jsonText, JsonSerializerOptions? options = null)
-    {
-        if (string.IsNullOrWhiteSpace(jsonText)) { return default; }
 
-        using var doc = JsonDocument.Parse(jsonText);
-        var root = doc.RootElement;
-
-        if (root.TryGetProperty("Note", out var note))
-        {
-            throw new InvalidOperationException($"API note: {note.GetString()}");
-        }
-
-        if (root.TryGetProperty("Error Message", out var err))
-        {
-            throw new InvalidOperationException($"API error: {err.GetString()}");
-        }
-
-        return JsonSerializer.Deserialize<T>(jsonText, options ?? DefaultJsonOptions);
-    }
-
-    /// <summary>
-    /// Parses CSV text into a list of <typeparamref name="T"/>. Pure helper — does not require an <see cref="HttpClient"/>.
-    /// </summary>
-    public static List<T>? LoadFromCsv<T>(string csvText) where T : class
-    {
-        CsvImportResult<T> results = CsvReader.ReadFromStringSafe<T>(csvText);
-        return results.IsSuccess ? results.Records : null;
-    }
 
     /// <summary>
     /// Fetches XML data from the URL and deserializes it into <typeparamref name="T"/>.
@@ -215,7 +157,7 @@ public class HttpApi
         apiResultLoggingMethod?.Invoke(xml);
 
         if (string.IsNullOrWhiteSpace(xml)) { return default; }
-        return LoadFromXml<T>(xml);
+        return Serializer.LoadFromXml<T>(xml);
     }
 
     /// <summary>
@@ -280,11 +222,6 @@ public class HttpApi
     }
 
     /// <summary>
-    /// Deserializes an XML string into <typeparamref name="T"/>. Pure helper — does not require an <see cref="HttpClient"/>.
-    /// </summary>
-    public static T? LoadFromXml<T>(string xmlText) => XMLUtilities.FromString<T>(xmlText);
-
-    /// <summary>
     /// POSTs <paramref name="body"/> as JSON and deserializes the JSON response into <typeparamref name="TResponse"/>.
     /// </summary>
     public async Task<TResponse?> PostJsonAsync<TRequest, TResponse>(
@@ -297,7 +234,7 @@ public class HttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Post, url, body), "POST JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
     }
 
     /// <summary>
@@ -325,7 +262,7 @@ public class HttpApi
         string? json = await SendForStringAsync(request, "POST form", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
     }
 
     /// <summary>
@@ -341,7 +278,7 @@ public class HttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Put, url, body), "PUT JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
     }
 
     /// <summary>
@@ -357,7 +294,7 @@ public class HttpApi
         string? json = await SendForStringAsync(BuildJsonRequest(HttpMethod.Patch, url, body), "PATCH JSON", timeoutInSeconds, validator: null, cancellationToken).ConfigureAwait(false);
         apiResultLoggingMethod?.Invoke(json);
         if (string.IsNullOrWhiteSpace(json)) { return default; }
-        return LoadFromJson<TResponse>(json, _jsonOptions);
+        return Serializer.LoadFromJson<TResponse>(json, _jsonOptions);
     }
 
     /// <summary>
