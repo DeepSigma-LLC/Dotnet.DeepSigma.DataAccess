@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Cosmos
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Redis", "DeepSigma.DataAccess.Redis\DeepSigma.DataAccess.Redis.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E07}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Http", "DeepSigma.DataAccess.Http\DeepSigma.DataAccess.Http.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E09}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.Web", "DeepSigma.DataAccess.Http\DeepSigma.DataAccess.Web.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E09}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepSigma.DataAccess.MongoDB.Tests", "DeepSigma.DataAccess.MongoDB.Tests\DeepSigma.DataAccess.MongoDB.Tests.csproj", "{B7E2F3A1-4D1F-4E2A-9C8B-1A2B3C4D5E10}"
 EndProject
