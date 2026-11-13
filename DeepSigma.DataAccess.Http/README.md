@@ -4,9 +4,10 @@ Web-communication clients for DeepSigma applications, built on `HttpClient`. Tod
 
 1. **`HttpApi`** (behind **`IHttpApi`**) — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads; sending **`POST`/`PUT`/`PATCH`/`DELETE`** with JSON or form bodies; streaming binary downloads; and streaming large XML element-by-element. A `SendAsync` escape hatch covers anything the typed helpers don't.
 2. **`ISseClient`** — Server-Sent Events (`text/event-stream`) consumed as an `IAsyncEnumerable`, with transparent reconnection and `Last-Event-ID` resumption.
-3. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions, plus a shared `ReconnectPolicy` (capped exponential backoff with jitter) in `DeepSigma.DataAccess.Web.Resilience`.
+3. **`IWebSocketConnectionFactory` / `IWebSocketConnection`** — full-duplex WebSockets with typed/raw send and a reassembled receive stream, keep-alive, and auto-reconnect with a re-subscribe hook.
+4. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions, plus a shared `ReconnectPolicy` (capped exponential backoff with jitter) in `DeepSigma.DataAccess.Web.Resilience`.
 
-**A WebSocket client is being added** — this package is the home for all three transports.
+This package is the home for all three transports — HTTP, SSE, and WebSockets.
 
 > **Renamed in 3.0.0:** this package was `DeepSigma.DataAccess.Http`. The package id, assembly, and root namespace are now `DeepSigma.DataAccess.Web`. Update `using DeepSigma.DataAccess.Http;` → `using DeepSigma.DataAccess.Web;` (and `.Http.Throttling` → `.Web.Throttling`).
 
@@ -348,6 +349,60 @@ The subscription is long-lived and has **no per-call timeout**; its lifetime is 
 
 ---
 
+## WebSockets
+
+`IWebSocketConnectionFactory` opens `IWebSocketConnection`s over `ClientWebSocket`. A single background loop reads and reassembles frames into whole messages and publishes them to a bounded channel (back-pressure to the socket when the consumer lags); sends are serialized for you. On a transport fault it reconnects per the shared `ReconnectPolicy` and runs your re-subscribe hook.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddDeepSigmaWebSockets();               // registers IWebSocketConnectionFactory
+```
+
+```csharp
+var options = new WebSocketConnectionOptions
+{
+    AutoReconnect = true,
+    OnReconnected = async (conn, ct) => await conn.SendAsync(new Subscribe("AAPL"), ct), // re-subscribe after a drop
+};
+
+await using IWebSocketConnection conn = await factory.ConnectAsync(new Uri("wss://feed.example.com/ws"), options, ct);
+
+await conn.SendAsync(new Subscribe("AAPL"), ct);   // typed -> JSON text frame
+
+await foreach (Quote quote in conn.ReceiveAsync<Quote>(ct))   // typed receive
+{
+    Console.WriteLine($"{quote.Symbol} {quote.Price}");
+}
+```
+
+Received messages are a **C# 15 union** — switch over the three cases exhaustively when you want the raw stream:
+
+```csharp
+await foreach (WebSocketMessage message in conn.ReceiveAsync(ct))
+{
+    switch (message)
+    {
+        case WebSocketTextMessage t:   Handle(t.Text); break;
+        case WebSocketBinaryMessage b: Handle(b.Bytes); break;
+        case WebSocketCloseMessage c:  Console.WriteLine($"closed: {c.Status}"); break;
+    }
+}
+```
+
+| Option | Behaviour |
+|---|---|
+| `AutoReconnect` (default `true`) | Reconnect after a transport fault and run `OnReconnected`. A clean close never reconnects. |
+| `Reconnect` | The `ReconnectPolicy` spacing reconnect attempts. |
+| `KeepAliveInterval` | Ping interval on the underlying `ClientWebSocket` (default 30s). |
+| `SubProtocols` / `ConfigureSocket` | Handshake sub-protocols and raw `ClientWebSocketOptions` access (headers, auth, TLS). |
+| `OnReconnected` | Invoked after a successful reconnect, before delivery resumes — re-send your subscription frames here. |
+| `ReceiveQueueCapacity` / `ReceiveBufferSize` | Bounded receive-queue depth and per-read buffer size. |
+
+A connection is a single-consumer receive stream; sends are serialized internally and safe to call concurrently. Dispose the connection (`await using`) to close and release the socket. Inject a `TimeProvider` into `WebSocketConnectionFactory` to drive reconnection delays deterministically in tests.
+
+---
+
 ## Rate limiting and retry: `DelegatingHandler`s
 
 Two small handlers ship alongside `HttpApi`. They're generic, hand-rolled (no Polly dep), and composable with `IHttpClientBuilder` chaining.
@@ -508,7 +563,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
-| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. WebSocket client to follow. |
+| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. **New WebSocket client** — `IWebSocketConnectionFactory`/`IWebSocketConnection` over `ClientWebSocket`: typed/raw duplex, a reassembled receive stream whose messages are a C# 15 union (`WebSocketMessage`), keep-alive, and auto-reconnect with an `OnReconnected` re-subscribe hook; register with `AddDeepSigmaWebSockets()`. |
 | `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |

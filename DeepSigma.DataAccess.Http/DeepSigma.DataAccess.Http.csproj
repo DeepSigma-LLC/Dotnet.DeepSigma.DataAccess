@@ -28,6 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DeepSigma.DataAccess.Http.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="DeepSigma.Core" Version="2.0.0" />
     <PackageReference Include="DeepSigma.DataAccess.CsvUtilities" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />

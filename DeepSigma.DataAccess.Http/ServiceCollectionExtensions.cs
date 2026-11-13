@@ -1,5 +1,7 @@
+using System.Text.Json;
 using DeepSigma.DataAccess.Web;
 using DeepSigma.DataAccess.Web.Throttling;
+using Microsoft.Extensions.Logging;
 
 // ReSharper disable once CheckNamespace -- intentional, so the extension lights up wherever DI is in scope.
 namespace Microsoft.Extensions.DependencyInjection;
@@ -50,6 +52,20 @@ public static class DeepSigmaHttpServiceCollectionExtensions
         }
 
         services.AddTransient<ISseClient>(sp => sp.GetRequiredService<SseClient>());
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="IWebSocketConnectionFactory"/> (a <see cref="WebSocketConnectionFactory"/>)
+    /// as a singleton. Pass <paramref name="jsonOptions"/> to control the JSON shape used by typed
+    /// send/receive; an <see cref="ILoggerFactory"/> and <see cref="TimeProvider"/> are resolved from DI when present.
+    /// </summary>
+    public static IServiceCollection AddDeepSigmaWebSockets(this IServiceCollection services, JsonSerializerOptions? jsonOptions = null)
+    {
+        services.AddSingleton<IWebSocketConnectionFactory>(sp => new WebSocketConnectionFactory(
+            jsonOptions,
+            sp.GetService<ILoggerFactory>(),
+            sp.GetService<TimeProvider>()));
         return services;
     }
 
