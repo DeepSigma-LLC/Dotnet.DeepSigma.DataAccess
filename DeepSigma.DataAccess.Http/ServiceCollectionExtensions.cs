@@ -1,5 +1,5 @@
-using DeepSigma.DataAccess.Http;
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web;
+using DeepSigma.DataAccess.Web.Throttling;
 
 // ReSharper disable once CheckNamespace -- intentional, so the extension lights up wherever DI is in scope.
 namespace Microsoft.Extensions.DependencyInjection;
@@ -11,8 +11,9 @@ public static class DeepSigmaHttpServiceCollectionExtensions
 {
     /// <summary>
     /// Registers <see cref="HttpApi"/> as a typed <see cref="HttpClient"/> consumer via
-    /// <see cref="IHttpClientFactory"/>. Use the optional <paramref name="configureClient"/>
-    /// callback to set default headers, base address, etc.
+    /// <see cref="IHttpClientFactory"/>, and maps <see cref="IHttpApi"/> to it so consumers can
+    /// depend on the interface. Use the optional <paramref name="configureClient"/> callback to set
+    /// default headers, base address, etc.
     /// </summary>
     public static IServiceCollection AddDeepSigmaHttp(this IServiceCollection services, Action<HttpClient>? configureClient = null)
     {
@@ -24,6 +25,9 @@ public static class DeepSigmaHttpServiceCollectionExtensions
         {
             services.AddHttpClient<HttpApi>(configureClient);
         }
+
+        // Resolve IHttpApi to the typed-client HttpApi so callers may inject either.
+        services.AddTransient<IHttpApi>(sp => sp.GetRequiredService<HttpApi>());
         return services;
     }
 

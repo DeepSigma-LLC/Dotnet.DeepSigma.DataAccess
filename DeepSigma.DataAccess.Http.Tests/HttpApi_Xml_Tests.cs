@@ -2,10 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Serialization;
-using DeepSigma.DataAccess.Http.Tests.Infrastructure;
+using DeepSigma.DataAccess.Web.Tests.Infrastructure;
 using Xunit;
 
-namespace DeepSigma.DataAccess.Http.Tests;
+namespace DeepSigma.DataAccess.Web.Tests;
 
 public class HttpApi_Xml_Tests
 {
@@ -127,7 +127,7 @@ public class HttpApi_Xml_Tests
     [Fact]
     public void LoadFromXml_StaticHelper_Deserializes()
     {
-        PersonDto? dto = HttpApi.LoadFromXml<PersonDto>("<person><name>Margaret</name><age>84</age></person>");
+        PersonDto? dto = Serializer.LoadFromXml<PersonDto>("<person><name>Margaret</name><age>84</age></person>");
 
         Assert.NotNull(dto);
         Assert.Equal("Margaret", dto!.Name);
@@ -137,6 +137,6 @@ public class HttpApi_Xml_Tests
     [Fact]
     public void LoadFromXml_ReturnsDefault_ForEmptyInput()
     {
-        Assert.Null(HttpApi.LoadFromXml<PersonDto>(""));
+        Assert.Null(Serializer.LoadFromXml<PersonDto>(""));
     }
 }

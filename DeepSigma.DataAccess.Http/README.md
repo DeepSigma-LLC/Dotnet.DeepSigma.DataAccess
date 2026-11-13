@@ -1,16 +1,20 @@
-# DeepSigma.DataAccess.Http
+# DeepSigma.DataAccess.Web
 
-HTTP helpers for building polite, throttled API clients on top of `HttpClient`. Two layers:
+Web-communication clients for DeepSigma applications, built on `HttpClient`. Today:
 
-1. **`HttpApi`** — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads; sending **`POST`/`PUT`/`PATCH`/`DELETE`** with JSON or form bodies; streaming binary downloads; and streaming large XML element-by-element. A `SendAsync` escape hatch covers anything the typed helpers don't.
-2. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions.
+1. **`HttpApi`** (behind **`IHttpApi`**) — typed-HTTP helper for fetching and deserializing **JSON**, **CSV**, and **XML** payloads; sending **`POST`/`PUT`/`PATCH`/`DELETE`** with JSON or form bodies; streaming binary downloads; and streaming large XML element-by-element. A `SendAsync` escape hatch covers anything the typed helpers don't.
+2. **Reusable `DelegatingHandler`s** — `MinIntervalDelegatingHandler` (throttling) and `RetryAfterDelegatingHandler` (server-driven backoff), composable on any named or typed `HttpClient` via `IHttpClientBuilder` extensions, plus a shared `ReconnectPolicy` (capped exponential backoff with jitter) in `DeepSigma.DataAccess.Web.Resilience`.
+
+**Server-Sent Events and WebSocket clients are being added** — this package is the home for all three transports.
+
+> **Renamed in 3.0.0:** this package was `DeepSigma.DataAccess.Http`. The package id, assembly, and root namespace are now `DeepSigma.DataAccess.Web`. Update `using DeepSigma.DataAccess.Http;` → `using DeepSigma.DataAccess.Web;` (and `.Http.Throttling` → `.Web.Throttling`).
 
 This package is **independent** of the relational stack and intended for consumption by API-specific data-access libraries (e.g. `DeepSigma.DataAccess.ArXiv`, `DeepSigma.AlphaVantage`).
 
 ## Installation
 
 ```bash
-dotnet add package DeepSigma.DataAccess.Http
+dotnet add package DeepSigma.DataAccess.Web
 ```
 
 ## Dependencies
@@ -67,9 +71,9 @@ All share the read methods' semantics: per-call timeout via linked `Cancellation
 
 | Method | Behaviour |
 |---|---|
-| `HttpApi.LoadFromJson<T>(jsonText, options = null)` | Deserialises JSON text into `T`. Throws on the presence of `Note` or `Error Message` properties (a common rate-limit pattern). Uses `DefaultJsonOptions` when `options` is omitted. |
-| `HttpApi.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
-| `HttpApi.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
+| `Serializer.LoadFromJson<T>(jsonText, options = null)` | Deserialises JSON text into `T`. Throws on the presence of `Note` or `Error Message` properties (a common rate-limit pattern). Uses `DefaultJsonOptions` when `options` is omitted. |
+| `Serializer.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
+| `Serializer.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
 
 ## JSON serialization options
 
@@ -130,7 +134,7 @@ public class WeatherService(HttpApi http)
 ## Quick start: JSON
 
 ```csharp
-using DeepSigma.DataAccess.Http;
+using DeepSigma.DataAccess.Web;
 
 public sealed class WeatherResponse
 {
@@ -148,7 +152,7 @@ WeatherResponse? weather = await http.GetDataFromUrlAsync<WeatherResponse>(
 ## Quick start: CSV
 
 ```csharp
-using DeepSigma.DataAccess.Http;
+using DeepSigma.DataAccess.Web;
 
 public sealed class Trade
 {
@@ -168,14 +172,14 @@ If you want to log, cache, or transform the raw body before parsing:
 ```csharp
 string? raw = await http.GetJsonResponseAsync(url);
 File.WriteAllText("snapshot.json", raw);          // cache
-WeatherResponse? dto = HttpApi.LoadFromJson<WeatherResponse>(raw!);
+WeatherResponse? dto = Serializer.LoadFromJson<WeatherResponse>(raw!);
 ```
 
 ## Quick start: XML
 
 ```csharp
 using System.Xml.Serialization;
-using DeepSigma.DataAccess.Http;
+using DeepSigma.DataAccess.Web;
 
 [XmlRoot("rss")]
 public sealed class RssFeed
@@ -312,7 +316,7 @@ Two small handlers ship alongside `HttpApi`. They're generic, hand-rolled (no Po
 Enforces a minimum delay between outgoing requests sharing a string key. Process-scoped semaphore — multiple `HttpClient` instances using the same key cooperate on spacing.
 
 ```csharp
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web.Throttling;
 
 services.AddHttpClient("polite-api")
         .AddMinIntervalThrottle(
@@ -331,7 +335,7 @@ services.AddHttpClient("polite-api")
 Retries on configured status codes (default: 429, 503), honoring the `Retry-After` header (delta-seconds or HTTP-date). Falls back to capped exponential backoff with jitter when the header is missing.
 
 ```csharp
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web.Throttling;
 
 services.AddHttpClient("retrying-api")
         .AddRetryAfterPolicy(o =>
@@ -367,8 +371,8 @@ Recommended order: throttle → retry. The throttle gates outgoing requests; the
 Putting it all together — a typed client that hits `https://api.example.com/`, paces at one request per second, retries 429/503 with `Retry-After`, and deserializes JSON:
 
 ```csharp
-using DeepSigma.DataAccess.Http;
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web;
+using DeepSigma.DataAccess.Web.Throttling;
 using Microsoft.Extensions.DependencyInjection;
 
 public sealed record ExampleDto(string Id, string Name);
@@ -463,6 +467,7 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
+| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). Foundation release for the Server-Sent Events and WebSocket clients landing in subsequent versions. |
 | `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |

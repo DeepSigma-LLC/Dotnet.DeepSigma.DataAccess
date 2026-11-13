@@ -5,7 +5,7 @@ using DeepSigma.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DeepSigma.DataAccess.Http;
+namespace DeepSigma.DataAccess.Web;
 
 /// <summary>
 /// Instance API for interacting with web APIs: reading JSON, CSV, and XML payloads;
@@ -19,7 +19,7 @@ namespace DeepSigma.DataAccess.Http;
 /// Per-call timeouts are enforced via a linked <see cref="CancellationTokenSource"/>,
 /// so the injected <see cref="HttpClient"/>'s own <c>Timeout</c> property is ignored.
 /// </remarks>
-public class HttpApi
+public class HttpApi : IHttpApi
 {
     private readonly HttpClient _http;
     private readonly ILogger<HttpApi> _logger;

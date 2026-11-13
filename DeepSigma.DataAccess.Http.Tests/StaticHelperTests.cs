@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace DeepSigma.DataAccess.Http.Tests;
+namespace DeepSigma.DataAccess.Web.Tests;
 
 public class StaticHelperTests
 {
@@ -13,7 +13,7 @@ public class StaticHelperTests
     [Fact]
     public void LoadFromJson_deserializes_well_formed_json()
     {
-        var dto = HttpApi.LoadFromJson<Dto>("{\"name\":\"x\",\"count\":3}");
+        var dto = Serializer.LoadFromJson<Dto>("{\"name\":\"x\",\"count\":3}");
 
         Assert.NotNull(dto);
         Assert.Equal("x", dto!.Name);
@@ -23,7 +23,7 @@ public class StaticHelperTests
     [Fact]
     public void LoadFromJson_is_case_insensitive_on_property_names()
     {
-        var dto = HttpApi.LoadFromJson<Dto>("{\"Name\":\"x\",\"COUNT\":3}");
+        var dto = Serializer.LoadFromJson<Dto>("{\"Name\":\"x\",\"COUNT\":3}");
 
         Assert.Equal("x", dto!.Name);
         Assert.Equal(3, dto.Count);
@@ -32,7 +32,7 @@ public class StaticHelperTests
     [Fact]
     public void LoadFromJson_allows_numbers_quoted_as_strings()
     {
-        var dto = HttpApi.LoadFromJson<Dto>("{\"name\":\"x\",\"count\":\"3\"}");
+        var dto = Serializer.LoadFromJson<Dto>("{\"name\":\"x\",\"count\":\"3\"}");
 
         Assert.Equal(3, dto!.Count);
     }
@@ -40,7 +40,7 @@ public class StaticHelperTests
     [Fact]
     public void LoadFromJson_returns_default_for_empty_input()
     {
-        var dto = HttpApi.LoadFromJson<Dto>("");
+        var dto = Serializer.LoadFromJson<Dto>("");
         Assert.Null(dto);
     }
 
@@ -49,7 +49,7 @@ public class StaticHelperTests
     {
         const string body = "{\"Note\":\"Thank you for using Alpha Vantage! Please subscribe to a premium plan...\"}";
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HttpApi.LoadFromJson<Dto>(body));
+        var ex = Assert.Throws<InvalidOperationException>(() => Serializer.LoadFromJson<Dto>(body));
         Assert.Contains("API note", ex.Message);
     }
 
@@ -58,7 +58,7 @@ public class StaticHelperTests
     {
         const string body = "{\"Error Message\":\"Invalid API call.\"}";
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HttpApi.LoadFromJson<Dto>(body));
+        var ex = Assert.Throws<InvalidOperationException>(() => Serializer.LoadFromJson<Dto>(body));
         Assert.Contains("API error", ex.Message);
     }
 }

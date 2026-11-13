@@ -1,10 +1,10 @@
 using System.Net;
-using DeepSigma.DataAccess.Http.Tests.Infrastructure;
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web.Tests.Infrastructure;
+using DeepSigma.DataAccess.Web.Throttling;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DeepSigma.DataAccess.Http.Tests;
+namespace DeepSigma.DataAccess.Web.Tests;
 
 public class ServiceCollection_Throttle_Tests
 {

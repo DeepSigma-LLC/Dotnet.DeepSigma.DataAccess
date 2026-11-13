@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepSigma.DataAccess.CsvUtilities.Reading;
 
-namespace DeepSigma.DataAccess.Http;
+namespace DeepSigma.DataAccess.Web;
 
 /// <summary>
 ///  

@@ -1,6 +1,7 @@
 using System.Net;
+using DeepSigma.DataAccess.Web.Resilience;
 
-namespace DeepSigma.DataAccess.Http.Throttling;
+namespace DeepSigma.DataAccess.Web.Throttling;
 
 /// <summary>
 /// Configuration for <see cref="RetryAfterDelegatingHandler"/>.
@@ -32,6 +33,7 @@ public sealed class RetryAfterDelegatingHandler : DelegatingHandler
 {
     private readonly RetryAfterOptions _options;
     private readonly TimeProvider _clock;
+    private readonly ReconnectPolicy _backoff;
 
     /// <summary>
     /// Creates a new handler. <paramref name="clock"/> defaults to <see cref="TimeProvider.System"/>;
@@ -46,6 +48,12 @@ public sealed class RetryAfterDelegatingHandler : DelegatingHandler
         }
         _options = options;
         _clock = clock ?? TimeProvider.System;
+        _backoff = new ReconnectPolicy
+        {
+            MaxAttempts = options.MaxAttempts,
+            BaseBackoff = options.BaseBackoff,
+            MaxBackoff = options.MaxBackoff,
+        };
     }
 
     /// <inheritdoc />
@@ -139,21 +147,16 @@ public sealed class RetryAfterDelegatingHandler : DelegatingHandler
         {
             if (retryAfter.Delta is { } delta && delta > TimeSpan.Zero)
             {
-                return Cap(delta);
+                return _backoff.Cap(delta);
             }
             if (retryAfter.Date is { } date)
             {
                 TimeSpan diff = date - _clock.GetUtcNow();
-                if (diff > TimeSpan.Zero) { return Cap(diff); }
+                if (diff > TimeSpan.Zero) { return _backoff.Cap(diff); }
             }
         }
 
-        // Capped exponential backoff with jitter.
-        double exponentMs = _options.BaseBackoff.TotalMilliseconds * Math.Pow(2, attempt - 1);
-        int jitterUpperBound = Math.Max(1, (int)Math.Min(int.MaxValue, _options.BaseBackoff.TotalMilliseconds));
-        double jitterMs = Random.Shared.Next(0, jitterUpperBound);
-        return Cap(TimeSpan.FromMilliseconds(exponentMs + jitterMs));
+        // No usable Retry-After header: capped exponential backoff with jitter.
+        return _backoff.GetDelay(attempt);
     }
-
-    private TimeSpan Cap(TimeSpan value) => value > _options.MaxBackoff ? _options.MaxBackoff : value;
 }

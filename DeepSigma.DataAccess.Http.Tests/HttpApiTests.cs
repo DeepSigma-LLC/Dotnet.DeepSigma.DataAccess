@@ -1,8 +1,8 @@
 using System.Net;
-using DeepSigma.DataAccess.Http.Tests.Infrastructure;
+using DeepSigma.DataAccess.Web.Tests.Infrastructure;
 using Xunit;
 
-namespace DeepSigma.DataAccess.Http.Tests;
+namespace DeepSigma.DataAccess.Web.Tests;
 
 public class HttpApiTests
 {

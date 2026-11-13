@@ -1,10 +1,10 @@
 using System.Net;
-using DeepSigma.DataAccess.Http.Tests.Infrastructure;
-using DeepSigma.DataAccess.Http.Throttling;
+using DeepSigma.DataAccess.Web.Tests.Infrastructure;
+using DeepSigma.DataAccess.Web.Throttling;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
-namespace DeepSigma.DataAccess.Http.Tests.Throttling;
+namespace DeepSigma.DataAccess.Web.Tests.Throttling;
 
 public class MinIntervalDelegatingHandler_Tests
 {

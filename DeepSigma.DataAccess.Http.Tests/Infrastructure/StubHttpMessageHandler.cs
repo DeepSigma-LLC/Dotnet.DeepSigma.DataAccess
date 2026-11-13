@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 
-namespace DeepSigma.DataAccess.Http.Tests.Infrastructure;
+namespace DeepSigma.DataAccess.Web.Tests.Infrastructure;
 
 /// <summary>
 /// Test handler that returns a configurable response without making any real HTTP calls.

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DeepSigma.DataAccess.Http.Throttling;
+namespace DeepSigma.DataAccess.Web.Throttling;
 
 /// <summary>
 /// Configuration for <see cref="MinIntervalDelegatingHandler"/>.
