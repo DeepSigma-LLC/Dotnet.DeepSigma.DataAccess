@@ -7,14 +7,14 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>DeepSigma.DataAccess.Web</Title>
     <Authors>DeepSigma LLC</Authors>
-    <Description>Web-communication clients for DeepSigma applications: HTTP (JSON/CSV/XML read and write verbs, streaming downloads), plus throttle/retry handlers and shared reconnection policy. Server-Sent Events and WebSocket clients are being added.</Description>
-    <PackageDescription>Web-communication clients for DeepSigma applications: HTTP (JSON/CSV/XML read and write verbs, streaming downloads), plus throttle/retry handlers and shared reconnection policy. Server-Sent Events and WebSocket clients are being added.</PackageDescription>
+    <Description>Web-communication clients for DeepSigma applications: HTTP (JSON/CSV/XML read and write verbs, streaming downloads), Server-Sent Events, and WebSockets, plus throttle/retry handlers and a shared reconnection policy.</Description>
+    <PackageDescription>Web-communication clients for DeepSigma applications: HTTP (JSON/CSV/XML read and write verbs, streaming downloads), Server-Sent Events, and WebSockets, plus throttle/retry handlers and a shared reconnection policy.</PackageDescription>
     <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess</RepositoryUrl>
     <PackageId>DeepSigma.DataAccess.Web</PackageId>
     <AssemblyName>DeepSigma.DataAccess.Web</AssemblyName>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>2.0.0</Version>
+    <Version>3.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Web</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="DeepSigma.DataAccess.Http.Tests" />
+    <InternalsVisibleTo Include="DeepSigma.DataAccess.Web.Tests" />
   </ItemGroup>
 
   <ItemGroup>
