@@ -139,24 +139,7 @@ public sealed class RetryAfterDelegatingHandler : DelegatingHandler
         return clone;
     }
 
-    private TimeSpan ComputeDelay(HttpResponseMessage response, int attempt)
-    {
-        // Honor Retry-After header when present.
-        System.Net.Http.Headers.RetryConditionHeaderValue? retryAfter = response.Headers.RetryAfter;
-        if (retryAfter is not null)
-        {
-            if (retryAfter.Delta is { } delta && delta > TimeSpan.Zero)
-            {
-                return _backoff.Cap(delta);
-            }
-            if (retryAfter.Date is { } date)
-            {
-                TimeSpan diff = date - _clock.GetUtcNow();
-                if (diff > TimeSpan.Zero) { return _backoff.Cap(diff); }
-            }
-        }
-
-        // No usable Retry-After header: capped exponential backoff with jitter.
-        return _backoff.GetDelay(attempt);
-    }
+    private TimeSpan ComputeDelay(HttpResponseMessage response, int attempt) =>
+        // Honor Retry-After when present (capped); otherwise capped exponential backoff with jitter.
+        RetryAfterHeader.GetDelay(response, _clock) is { } wait ? _backoff.Cap(wait) : _backoff.GetDelay(attempt);
 }

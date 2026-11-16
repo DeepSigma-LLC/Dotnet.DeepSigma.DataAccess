@@ -44,22 +44,19 @@ public class StaticHelperTests
         Assert.Null(dto);
     }
 
-    [Fact]
-    public void LoadFromJson_with_AlphaVantage_guard_throws_on_Note_property()
+    /// <summary>A provider's convention, as a vendor package would write it: an <c>error</c> property in a 200.</summary>
+    private static readonly JsonResponseGuard ErrorProperty = static root =>
     {
-        const string body = "{\"Note\":\"Thank you for using Alpha Vantage! Please subscribe to a premium plan...\"}";
-
-        var ex = Assert.Throws<InvalidOperationException>(() => Serializer.LoadFromJson<Dto>(body, guard: JsonResponseGuards.AlphaVantage));
-        Assert.Contains("API note", ex.Message);
-    }
+        if (root.ValueKind == System.Text.Json.JsonValueKind.Object && root.TryGetProperty("error", out var error))
+            throw new InvalidOperationException($"API error: {error.GetString()}");
+    };
 
     [Fact]
-    public void LoadFromJson_with_AlphaVantage_guard_throws_on_Error_Message_property()
+    public void LoadFromJson_runs_the_guard_before_deserializing()
     {
-        const string body = "{\"Error Message\":\"Invalid API call.\"}";
-
-        var ex = Assert.Throws<InvalidOperationException>(() => Serializer.LoadFromJson<Dto>(body, guard: JsonResponseGuards.AlphaVantage));
+        var ex = Assert.Throws<InvalidOperationException>(() => Serializer.LoadFromJson<Dto>("{\"error\":\"Invalid API call.\"}", guard: ErrorProperty));
         Assert.Contains("API error", ex.Message);
+        Assert.Equal("ok", Serializer.LoadFromJson<Dto>("{\"name\":\"ok\"}", guard: ErrorProperty)!.Name);
     }
 
     [Fact]

@@ -30,7 +30,11 @@ public class HttpApiTests
     public async Task GetDataFromUrlAsync_applies_the_configured_response_guard()
     {
         var handler = StubHttpMessageHandler.WithJsonBody("{\"Note\":\"rate limited\"}");
-        var http = new HttpApi(new HttpClient(handler), responseGuard: JsonResponseGuards.AlphaVantage);
+        JsonResponseGuard guard = static root =>
+        {
+            if (root.TryGetProperty("Note", out var note)) throw new InvalidOperationException($"API note: {note.GetString()}");
+        };
+        var http = new HttpApi(new HttpClient(handler), responseGuard: guard);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => http.GetDataFromUrlAsync<WeatherDto>(

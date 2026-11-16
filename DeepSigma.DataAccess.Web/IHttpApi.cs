@@ -64,4 +64,8 @@ public interface IHttpApi
 
     /// <summary>Full-control send that streams the response body into <paramref name="destination"/>. The request is disposed.</summary>
     Task SendToStreamAsync(HttpRequestMessage request, Stream destination, int bufferSize = 81_920, CancellationToken cancellationToken = default);
+
+    /// <summary>Sends a caller-built request and returns the response read whole, whatever its status: never throws for
+    /// a status, so a refusal's body and <c>Retry-After</c> reach the caller. The request is disposed.</summary>
+    Task<HttpApiResponse> SendForResponseAsync(HttpRequestMessage request, int timeoutInSeconds = 15, CancellationToken cancellationToken = default);
 }

@@ -54,7 +54,7 @@ public static class Serializer
     /// <summary>
     /// Deserializes a JSON string into <typeparamref name="T"/>. When <paramref name="guard"/> is
     /// supplied, it inspects the response root first and may throw to surface API-level errors
-    /// (e.g. <see cref="JsonResponseGuards.AlphaVantage"/> for HTTP-200 rate-limit payloads).
+    /// (a vendor package's own, for HTTP-200 rate-limit payloads).
     /// Pure helper — does not require an <see cref="HttpClient"/>.
     /// </summary>
     public static T? LoadFromJson<T>(string jsonText, JsonSerializerOptions? options = null, JsonResponseGuard? guard = null)

@@ -68,12 +68,13 @@ All share the read methods' semantics: per-call timeout via linked `Cancellation
 |---|---|
 | `SendAsync(request, timeoutInSeconds = 15, validator = null, cancellationToken = default)` | Sends a caller-built `HttpRequestMessage` (custom headers, multipart, non-JSON bodies), applies the per-call timeout and status check, runs the optional `validator`, and returns the response body string. The request is disposed. |
 | `SendToStreamAsync(request, destination, bufferSize = 81_920, cancellationToken = default)` | Same, but streams the response body into `destination`. |
+| `SendForResponseAsync(request, timeoutInSeconds = 15, cancellationToken = default)` | Sends a caller-built request and returns an `HttpApiResponse` whatever the status: `StatusCode`, `Body`, `Headers` (response and content, any case), `RetryAfter` and `IsSuccess`. Never throws for a status, so a refusal's reason in its body reaches the caller. The request is disposed. |
 
 ### Static helpers (pure — no `HttpClient` needed)
 
 | Method | Behaviour |
 |---|---|
-| `Serializer.LoadFromJson<T>(jsonText, options = null, guard = null)` | Deserialises JSON text into `T`. Pass a `JsonResponseGuard` (e.g. `JsonResponseGuards.AlphaVantage`) to turn HTTP-200 rate-limit / error payloads into exceptions; with no guard, none runs. Uses `DefaultJsonOptions` when `options` is omitted. |
+| `Serializer.LoadFromJson<T>(jsonText, options = null, guard = null)` | Deserialises JSON text into `T`. Pass a `JsonResponseGuard` (a vendor package's own, such as the AlphaVantage package's) to turn HTTP-200 rate-limit / error payloads into exceptions; with no guard, none runs. Uses `DefaultJsonOptions` when `options` is omitted. |
 | `Serializer.LoadFromCsv<T>(csvText)` | Parses CSV text into `List<T>?`. Returns `null` if parsing fails. |
 | `Serializer.LoadFromXml<T>(xmlText)` | Deserialises XML text into `T` via `XmlSerializer`. Returns default for empty input. |
 
@@ -319,6 +320,15 @@ string? body = await http.SendAsync(
 
 `SendToStreamAsync(request, destination)` is the streaming counterpart for large or binary responses. Both dispose the request for you.
 
+For an API that explains a refusal in its body (`400 Invalid key 'x'.`) or whose caller decides what each status means,
+`SendForResponseAsync` returns the response whatever its status:
+
+```csharp
+var answer = await http.SendForResponseAsync(new HttpRequestMessage(HttpMethod.Post, "v3/mapping") { Content = json });
+if (!answer.IsSuccess)
+    throw new MyApiException((int)answer.StatusCode, answer.Body, answer.RetryAfter);   // the body says why
+```
+
 ---
 
 ## Server-Sent Events (SSE)
@@ -457,20 +467,44 @@ services.AddHttpClient("retrying-api")
 
 Defaults match what's shown above. Override `RetryStatusCodes` to add (e.g.) `BadGateway`, or to remove `429` if you handle it elsewhere.
 
+`RetryAfterHeader.GetDelay(response, clock)` is the handler's own reading of the header, public for a client that
+reports the wait to its caller rather than waiting.
+
 When `MaxAttempts` is exhausted, the *final* response (with whatever failure status) is returned to the caller — it's not converted into an exception. The caller's `EnsureSuccessStatusCode()` (or framework like `HttpApi.GetJsonResponseAsync`) decides whether to throw.
 
 ### Composition
 
-The handlers stack — chain them on `IHttpClientBuilder` and they apply in order:
+The handlers stack. On `IHttpClientBuilder` the first handler added is the outermost, so add the retry first: it then
+resubmits through the throttle, and every attempt is paced, retries included.
 
 ```csharp
 services.AddHttpClient("polite-and-retrying")
         .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.example.com/"))
-        .AddMinIntervalThrottle(TimeSpan.FromSeconds(3), key: "example.com")
-        .AddRetryAfterPolicy(o => o.MaxAttempts = 5);
+        .AddRetryAfterPolicy(o => o.MaxAttempts = 5)
+        .AddMinIntervalThrottle(TimeSpan.FromSeconds(3), key: "example.com");
 ```
 
-Recommended order: throttle → retry. The throttle gates outgoing requests; the retry handler observes responses and resubmits, going through the throttle again on the next attempt (so retries are also paced).
+Added the other way round (throttle, then retry), the retry sits inside the throttle and its attempts are not paced.
+
+### Without dependency injection: `HttpPipeline`
+
+A library that makes its own `HttpClient` (no service container) composes the same handlers, in the same order:
+
+```csharp
+using DeepSigma.DataAccess.Web.Throttling;
+
+var client = HttpPipeline.CreateClient(new SocketsHttpHandler(), new HttpPipelineOptions
+{
+    Retry       = new RetryAfterOptions { MaxAttempts = 5 },
+    Throttle    = new MinIntervalOptions { Key = "example.com", MinInterval = TimeSpan.FromSeconds(3) },
+    BaseAddress = new Uri("https://api.example.com/"),
+    Timeout     = Timeout.InfiniteTimeSpan,          // when the caller times each call itself
+});
+```
+
+Pass `disposeHandler: false` when the handler is shared by several clients or belongs to the caller: disposing the
+client then leaves it open (`NonDisposingHandler`). `HttpPipeline.CreateHandler` returns the chain alone. `Clock` takes a
+`FakeTimeProvider` in tests.
 
 ---
 
@@ -500,8 +534,8 @@ services.AddHttpClient<ExampleClient>(c =>
             c.BaseAddress = new Uri("https://api.example.com/");
             c.DefaultRequestHeaders.UserAgent.ParseAdd("MyApp/1.0 (contact@example.com)");
         })
-        .AddMinIntervalThrottle(TimeSpan.FromSeconds(1), key: "example.com")
-        .AddRetryAfterPolicy(o => o.MaxAttempts = 5);
+        .AddRetryAfterPolicy(o => o.MaxAttempts = 5)                        // first: the outermost, so retries are paced
+        .AddMinIntervalThrottle(TimeSpan.FromSeconds(1), key: "example.com");
 ```
 
 Consumers inject `ExampleClient`; the throttling and retry behaviors are entirely transparent.
@@ -575,7 +609,8 @@ Tests run in milliseconds — no real waiting.
 
 | Version | Notes |
 |---|---|
-| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. **New WebSocket client** — `IWebSocketConnectionFactory`/`IWebSocketConnection` over `ClientWebSocket`: typed/raw duplex, a reassembled receive stream whose messages are a C# 15 union (`WebSocketMessage`), keep-alive, and auto-reconnect with an `OnReconnected` re-subscribe hook; register with `AddDeepSigmaWebSockets()`. **Unified DI** — `AddDeepSigmaWeb()` registers all three transports (or a selected subset). **Pluggable response guard (breaking)** — the `Note`/`Error Message` rate-limit check is no longer applied by default; opt in with a `JsonResponseGuard` (`JsonResponseGuards.AlphaVantage`) on `Serializer.LoadFromJson` or the `HttpApi` constructor. |
+| `4.0.0` | **`HttpPipeline`** composes the retry and spacing handlers without dependency injection (`HttpPipelineOptions`: retry, throttle, clock, base address, timeout), with `NonDisposingHandler` for a handler the client does not own. **`HttpApi.SendForResponseAsync`** returns an `HttpApiResponse` (status, body, headers, `RetryAfter`) whatever the status, for APIs whose refusals carry their reason in the body; the constructor takes an optional `TimeProvider`. **`RetryAfterHeader.GetDelay`** is the retry handler's reading of `Retry-After`, now public. **Documentation fix:** on `IHttpClientBuilder` the first handler added is the outermost, so add the retry before the throttle to pace retries (the examples had it the other way round). **Breaking:** `JsonResponseGuards.AlphaVantage` is removed — it is AlphaVantage's convention and lives in the AlphaVantage package (`AlphaVantageResponseGuard`); `IHttpApi` gains `SendForResponseAsync`, so other implementations must add it. |
+| `3.0.0` | **Package renamed** `DeepSigma.DataAccess.Http` → `DeepSigma.DataAccess.Web` (package id, assembly, and root namespace), reflecting its expanded scope to all web transports. **New `IHttpApi` interface** extracted from `HttpApi` for mockability; `AddDeepSigmaHttp()` now also registers `IHttpApi`. **New shared `ReconnectPolicy`** (`DeepSigma.DataAccess.Web.Resilience`) factored out of `RetryAfterDelegatingHandler`'s backoff math, to be reused by the upcoming SSE and WebSocket reconnection loops — retry/backoff behavior is unchanged. **Migration:** update `using DeepSigma.DataAccess.Http*` namespaces to `…Web*`; the static deserializers live on `Serializer` (`Serializer.LoadFromJson`/`LoadFromXml`/`LoadFromCsv`). **New SSE client** — `ISseClient`/`SseClient` consume `text/event-stream` as an `IAsyncEnumerable` (typed or raw) via `System.Net.ServerSentEvents.SseParser`, with transparent reconnection, `Last-Event-ID` resumption, and event-type filtering; register with `AddDeepSigmaSse()`. **New WebSocket client** — `IWebSocketConnectionFactory`/`IWebSocketConnection` over `ClientWebSocket`: typed/raw duplex, a reassembled receive stream whose messages are a C# 15 union (`WebSocketMessage`), keep-alive, and auto-reconnect with an `OnReconnected` re-subscribe hook; register with `AddDeepSigmaWebSockets()`. **Unified DI** — `AddDeepSigmaWeb()` registers all three transports (or a selected subset). **Pluggable response guard (breaking)** — the `Note`/`Error Message` rate-limit check is no longer applied by default; opt in with a `JsonResponseGuard` on `Serializer.LoadFromJson` or the `HttpApi` constructor (in 3.0.0, `JsonResponseGuards.AlphaVantage`; removed in 4.0.0). |
 | `1.3.0` | **Write verbs:** `POST`/`PUT`/`PATCH`/`DELETE` helpers on `HttpApi` — `PostJsonAsync` (typed and raw-string overloads), `PostFormAsync`, `PutJsonAsync`, `PatchJsonAsync`, `DeleteAsync` (all with the same `apiResultLoggingMethod` upstream-capture hook as the `GET` helpers); streaming-response variants `PostJsonToStreamAsync` / `PutJsonToStreamAsync`; and a full-control `SendAsync` / `SendToStreamAsync` escape hatch for caller-built `HttpRequestMessage`s. **Configurable JSON:** each instance carries a `JsonSerializerOptions` (used for both read and write) — new `DefaultJsonOptions` and `SnakeCaseJsonOptions` static presets, selectable via a new optional `jsonOptions` constructor argument; `LoadFromJson<T>` gains an optional `options` argument. Internal refactor routing every method through a shared request-based core (`SendForStringAsync` / `SendToStreamCoreAsync`). The new constructor and `LoadFromJson` parameters are optional, so existing call sites compile unchanged. |
 | `1.2.0` | **Bug fix:** `RetryAfterDelegatingHandler` now clones the `HttpRequestMessage` between attempts so request bodies survive retries — previously the handler reused the same instance, which failed on `POST`/`PUT` because `HttpContent` is disposed after the first send. Internal refactor of `HttpApi.GetJsonResponseAsync` / `GetXmlResponseAsync` / `GetCsvDataAsync` to share a single body-fetch helper; `GetJsonResponseAsync` now uses `HttpCompletionOption.ResponseHeadersRead` matching the other variants. No public API changes. |
 | `1.1.0` | XML methods on `HttpApi` (`GetDataFromXmlUrlAsync`, `GetXmlResponseAsync`, `StreamXmlElementsAsync`, `LoadFromXml`); streaming binary downloads (`DownloadToStreamAsync`, `DownloadToFileAsync`); `MinIntervalDelegatingHandler` and `RetryAfterDelegatingHandler` with `IHttpClientBuilder` extensions (`AddMinIntervalThrottle`, `AddRetryAfterPolicy`). Added `DeepSigma.Core` 1.3.0 dependency. |

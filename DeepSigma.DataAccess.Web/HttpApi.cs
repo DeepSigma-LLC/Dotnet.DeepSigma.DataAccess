@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DeepSigma.Core.Utilities;
+using DeepSigma.DataAccess.Web.Throttling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,15 +26,19 @@ public class HttpApi : IHttpApi
     private readonly ILogger<HttpApi> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly JsonResponseGuard? _responseGuard;
+    private readonly TimeProvider _clock;
 
     /// <summary>
     /// Initializes a new instance of <see cref="HttpApi"/>. Pass <see cref="Serializer.SnakeCaseJsonOptions"/>
     /// (or any custom <see cref="JsonSerializerOptions"/>) to override <see cref="Serializer.DefaultJsonOptions"/>.
-    /// Supply <paramref name="responseGuard"/> (e.g. <see cref="JsonResponseGuards.AlphaVantage"/>) to turn
-    /// HTTP-200 rate-limit / error payloads into exceptions; by default no such check runs.
+    /// Supply <paramref name="responseGuard"/> (a vendor package's own) to turn HTTP-200 rate-limit / error payloads into
+    /// exceptions; by default no such check runs. <paramref name="clock"/> reads an HTTP-date <c>Retry-After</c>
+    /// (<see cref="SendForResponseAsync"/>); <see cref="TimeProvider.System"/> when null.
     /// </summary>
-    public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null, JsonSerializerOptions? jsonOptions = null, JsonResponseGuard? responseGuard = null)
+    public HttpApi(HttpClient httpClient, ILogger<HttpApi>? logger = null, JsonSerializerOptions? jsonOptions = null, JsonResponseGuard? responseGuard = null,
+                   TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _http = httpClient;
         _logger = logger ?? NullLogger<HttpApi>.Instance;
         _jsonOptions = jsonOptions ?? Serializer.DefaultJsonOptions;
@@ -357,6 +362,24 @@ public class HttpApi : IHttpApi
     {
         ArgumentNullException.ThrowIfNull(request);
         return SendForStringAsync(request, $"SEND {request.Method.Method}", timeoutInSeconds, validator, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<HttpApiResponse> SendForResponseAsync(HttpRequestMessage request, int timeoutInSeconds = 15, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _logger.LogDebug("HTTP SEND {Method} {Url} (any status), timeout {Timeout}s", request.Method.Method, request.RequestUri, timeoutInSeconds);
+        using (request)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutInSeconds));
+            using HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+            string body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+            var headers = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in response.Headers.Concat(response.Content.Headers))
+                headers[header.Key] = [.. header.Value];
+            return new HttpApiResponse(response.StatusCode, body, headers, RetryAfterHeader.GetDelay(response, _clock));
+        }
     }
 
     /// <summary>

@@ -14,12 +14,13 @@
     <PackageId>DeepSigma.DataAccess.Web</PackageId>
     <AssemblyName>DeepSigma.DataAccess.Web</AssemblyName>
     <AssemblyVersion>$(Version)</AssemblyVersion>
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
     <FileVersion>$(Version)</FileVersion>
     <RootNamespace>DeepSigma.DataAccess.Web</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageIcon>DeepSigma.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>4.0.0: HttpPipeline composes the retry and spacing handlers without dependency injection (HttpPipelineOptions, NonDisposingHandler); HttpApi.SendForResponseAsync returns a response whatever its status (HttpApiResponse); RetryAfterHeader reads Retry-After for any caller. Breaking: JsonResponseGuards.AlphaVantage is removed (it is AlphaVantage's convention; the AlphaVantage package has its own), and IHttpApi gains SendForResponseAsync.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
